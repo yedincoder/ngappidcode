@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +25,7 @@ type FileItem struct {
 	Name     string `json:"name"`
 	Path     string `json:"path"`
 	IsDir    bool   `json:"is_dir"`
-	GitState string `json:"git_state"` // Kosong, "M" (Modified), "U" (Untracked)
+	GitState string `json:"git_state"`
 }
 
 type FolderInfo struct {
@@ -36,16 +37,11 @@ func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
 
 // --- FILE MANAGEMENT ---
-
 func (a *App) OpenFile() (FileInfo, error) {
 	filepath, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{Title: "Buka File Kode"})
-	if err != nil || filepath == "" {
-		return FileInfo{}, err
-	}
+	if err != nil || filepath == "" { return FileInfo{}, err }
 	content, err := os.ReadFile(filepath)
-	if err != nil {
-		return FileInfo{}, err
-	}
+	if err != nil { return FileInfo{}, err }
 	return FileInfo{Path: filepath, Content: string(content)}, nil
 }
 
@@ -53,9 +49,7 @@ func (a *App) SaveFile(currentPath string, content string) (string, error) {
 	filepath := currentPath
 	if filepath == "" {
 		selectedPath, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{Title: "Simpan File Kode"})
-		if err != nil || selectedPath == "" {
-			return "", err
-		}
+		if err != nil || selectedPath == "" { return "", err }
 		filepath = selectedPath
 	}
 	err := os.WriteFile(filepath, []byte(content), 0644)
@@ -69,46 +63,26 @@ func (a *App) ReadFileByPath(filePath string) (string, error) {
 
 func (a *App) CreateNewFile(path string) error {
 	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
+	if err != nil { return err }
 	return file.Close()
 }
 
-func (a *App) CreateNewFolder(path string) error {
-	return os.MkdirAll(path, 0755)
-}
-
-func (a *App) RenameItem(oldPath string, newPath string) error {
-	return os.Rename(oldPath, newPath)
-}
-
-func (a *App) DeleteItem(path string) error {
-	return os.RemoveAll(path)
-}
+func (a *App) CreateNewFolder(path string) error { return os.MkdirAll(path, 0755) }
+func (a *App) RenameItem(oldPath string, newPath string) error { return os.Rename(oldPath, newPath) }
+func (a *App) DeleteItem(path string) error { return os.RemoveAll(path) }
 
 // --- FOLDER & EXPLORER ---
-
 func (a *App) OpenFolderDialog() (FolderInfo, error) {
 	folderPath, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{Title: "Buka Folder Project"})
-	if err != nil || folderPath == "" {
-		return FolderInfo{}, err
-	}
-
+	if err != nil || folderPath == "" { return FolderInfo{}, err }
 	files, err := a.GetFolderContents(folderPath)
-	if err != nil {
-		return FolderInfo{}, err
-	}
-
+	if err != nil { return FolderInfo{}, err }
 	return FolderInfo{BasePath: folderPath, Files: files}, nil
 }
 
 func (a *App) GetFolderContents(folderPath string) ([]FileItem, error) {
 	entries, err := os.ReadDir(folderPath)
-	if err != nil {
-		return nil, err
-	}
-
+	if err != nil { return nil, err }
 	gitStatuses, _ := a.GetGitStatus(folderPath)
 	var files []FileItem
 	for _, entry := range entries {
@@ -124,54 +98,123 @@ func (a *App) GetFolderContents(folderPath string) ([]FileItem, error) {
 	return files, nil
 }
 
-// --- GIT INTEGRATION ---
+// --- GIT SETUP & CONFIG ---
+func (a *App) SetGitConfig(name string, email string) error {
+	err := exec.Command("git", "config", "--global", "user.name", name).Run()
+	if err != nil { return err }
+	return exec.Command("git", "config", "--global", "user.email", email).Run()
+}
 
-func (a *App) GitPull(projectPath string) (string, error) {
-	if projectPath == "" {
-		return "Error: Buka folder project dulu, bro!", nil
+func (a *App) AddGitRemote(projectPath string, remoteUrl string) error {
+	if projectPath == "" { return nil }
+	cmdSet := exec.Command("git", "remote", "set-url", "origin", remoteUrl)
+	cmdSet.Dir = projectPath
+	err := cmdSet.Run()
+	if err != nil {
+		cmdAdd := exec.Command("git", "remote", "add", "origin", remoteUrl)
+		cmdAdd.Dir = projectPath
+		return cmdAdd.Run()
 	}
-	cmd := exec.Command("git", "pull")
+	return nil
+}
+
+func (a *App) GitInit(projectPath string) (string, error) {
+	if projectPath == "" { return "Error: Path kosong", nil }
+	cmd := exec.Command("git", "init")
 	cmd.Dir = projectPath
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), err
+		return "", fmt.Errorf("Git Init Error:\n%s", string(out))
 	}
 	return string(out), nil
 }
 
+// --- GIT ACTION (PULL, PUSH, RESET) ---
+func (a *App) GitPull(projectPath string) (string, error) {
+	if projectPath == "" { return "", fmt.Errorf("Error: Buka folder project dulu!") }
+	cmd := exec.Command("git", "pull", "origin", "main")
+	cmd.Dir = projectPath
+	out, err := cmd.CombinedOutput()
+	if err != nil { return "", fmt.Errorf("Git Pull Error:\n%s", string(out)) }
+	return string(out), nil
+}
+
+// --- GIT PUSH DENGAN AUTO-COMMIT & AUTO-ADD ---
 func (a *App) GitCommitAndPush(projectPath string, message string) (string, error) {
 	if projectPath == "" {
-		return "Error: Buka folder project dulu!", nil
+		return "", fmt.Errorf("Error: Buka folder project dulu!")
 	}
 
+	// Step 1: Auto-Init kalau belum ada
+	initCmd := exec.Command("git", "init")
+	initCmd.Dir = projectPath
+	initCmd.Run() // Fix: Eksekusi command dengan .Run()
+
+	// Step 2: Otomatis Add semua file yang berubah
 	cmdAdd := exec.Command("git", "add", ".")
 	cmdAdd.Dir = projectPath
 	if outAdd, err := cmdAdd.CombinedOutput(); err != nil {
-		return "Git Add Error:\n" + string(outAdd), err
+		return "", fmt.Errorf("Git Add Error:\n%s", string(outAdd))
 	}
 
+	// Step 3: Otomatis Commit
+	if message == "" {
+		message = "Update via NgAppID Editor"
+	}
 	cmdCommit := exec.Command("git", "commit", "-m", message)
 	cmdCommit.Dir = projectPath
-	outCommit, _ := cmdCommit.CombinedOutput()
+	outCommit, _ := cmdCommit.CombinedOutput() 
 
-	cmdPush := exec.Command("git", "push")
+	// Step 4: Push ke remote origin main
+	cmdPush := exec.Command("git", "push", "-u", "origin", "main")
 	cmdPush.Dir = projectPath
 	outPush, errPush := cmdPush.CombinedOutput()
+	
 	if errPush != nil {
-		return string(outCommit) + "\n\nGit Push Error:\n" + string(outPush), errPush
+		return "", fmt.Errorf("%s\n\nGit Push Error:\n%s\n\n💡 Tips: Pastikan URL Git Remote (origin) sudah disetup lewat menu Git Setup.", string(outCommit), string(outPush))
 	}
 
 	return string(outCommit) + "\n\n" + string(outPush), nil
 }
 
-func (a *App) GitInit(projectPath string) (string, error) {
+// --- GIT RESET DENGAN AUTO-INITIAL COMMIT ---
+func (a *App) GitReset(projectPath string) (string, error) {
 	if projectPath == "" {
-		return "Error: Path kosong", nil
+		return "", fmt.Errorf("Error: Buka folder project dulu!")
 	}
-	cmd := exec.Command("git", "init")
+	
+	// Step 1: Pastikan sudah ada repo git
+	initCmd := exec.Command("git", "init")
+	initCmd.Dir = projectPath
+	initCmd.Run() // Fix: Eksekusi command dengan .Run()
+
+	// Step 2: Cek apakah sudah ada commit (HEAD)
+	checkHead := exec.Command("git", "rev-parse", "HEAD")
+	checkHead.Dir = projectPath
+	if err := checkHead.Run(); err != nil {
+		// Kalau HEAD tidak ada, lakukan initial commit
+		addCmd := exec.Command("git", "add", ".")
+		addCmd.Dir = projectPath
+		addCmd.Run() // Fix: Eksekusi command dengan .Run()
+
+		commitCmd := exec.Command("git", "commit", "--allow-empty", "-m", "Initial commit by NgAppID Editor")
+		commitCmd.Dir = projectPath
+		outCommit, errCommit := commitCmd.CombinedOutput()
+		if errCommit != nil {
+			return "", fmt.Errorf("Gagal membuat commit awal:\n%s\n💡 Pastikan Git Setup (Nama & Email) sudah diisi.", string(outCommit))
+		}
+	}
+
+	// Step 3: Jalankan Git Reset
+	cmd := exec.Command("git", "reset", "--hard", "HEAD")
 	cmd.Dir = projectPath
 	out, err := cmd.CombinedOutput()
-	return string(out), err
+	if err != nil {
+		// Menangkap pesan asli dari git agar dilempar ke Wails
+		return "", fmt.Errorf("Git Reset Error:\n%s", string(out))
+	}
+	
+	return "Berhasil mereset project ke commit terakhir.\n" + string(out), nil
 }
 
 func (a *App) GetGitStatus(projectPath string) (map[string]string, error) {
@@ -179,31 +222,21 @@ func (a *App) GetGitStatus(projectPath string) (map[string]string, error) {
 	cmd.Dir = projectPath
 	out, err := cmd.Output()
 	statusMap := make(map[string]string)
-	if err != nil {
-		return statusMap, err
-	}
+	if err != nil { return statusMap, err }
 
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
-		if len(line) < 4 {
-			continue
-		}
+		if len(line) < 4 { continue }
 		state := strings.TrimSpace(line[:2])
 		fileRelative := strings.TrimSpace(line[3:])
 		absPath := filepath.Join(projectPath, fileRelative)
-
-		if strings.Contains(state, "M") {
-			statusMap[absPath] = "M" 
-		}
-		if strings.Contains(state, "?") || strings.Contains(state, "A") {
-			statusMap[absPath] = "U" 
-		}
+		if strings.Contains(state, "M") { statusMap[absPath] = "M" }
+		if strings.Contains(state, "?") || strings.Contains(state, "A") { statusMap[absPath] = "U" }
 	}
 	return statusMap, nil
 }
 
 // --- TERMINAL & UTILS ---
-
 func (a *App) RunCommand(dir string, command string) (string, error) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
@@ -213,17 +246,8 @@ func (a *App) RunCommand(dir string, command string) (string, error) {
 	}
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
-func (a *App) ShowAlert(title string, message string, msgType string) {
-	dialogType := wailsRuntime.InfoDialog
-	if msgType == "error" {
-		dialogType = wailsRuntime.ErrorDialog
+	if err != nil {
+		return "", fmt.Errorf("%s", string(out))
 	}
-	wailsRuntime.MessageDialog(a.ctx, wailsRuntime.MessageDialogOptions{
-		Type:    dialogType,
-		Title:   title,
-		Message: message,
-	})
+	return string(out), nil
 }

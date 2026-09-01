@@ -1,13 +1,17 @@
 import { 
     OpenFile, SaveFile, OpenFolderDialog, ReadFileByPath, 
-    GitPull, GitCommitAndPush, ShowAlert, GetFolderContents,
-    CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand
+    GitPull, GitCommitAndPush, GetFolderContents,
+    CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
+    SetGitConfig, AddGitRemote, GitReset
 } from '../wailsjs/go/main/App';
 
 let editorInstance;
 let tabs = [];
 let activeFilePath = null;
 let currentFolderPath = localStorage.getItem('lastFolder') || ""; 
+
+// FIX: Simpan state folder yang sedang di-expand di sidebar
+const expandedFolders = new Set();
 
 const languageMap = {
     '.js': 'javascript', '.ts': 'typescript', '.go': 'go', '.php': 'php', 
@@ -22,7 +26,6 @@ function detectLanguage(filePath) {
 
 function getFileIcon(fileName, isDir) {
     if (isDir) return '📁';
-    
     const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
     const iconMap = {
         '.php': '<i class="devicon-php-plain text-indigo-400 text-base"></i>',
@@ -37,11 +40,29 @@ function getFileIcon(fileName, isDir) {
         '.sql': '<i class="devicon-mysql-plain text-blue-300 text-base"></i>',
         '.md': '<i class="devicon-markdown-original text-gray-300 text-base"></i>'
     };
-    
     return iconMap[ext] || '📄';
 }
 
-// 1. INIT MONACO EDITOR & AUTOLOAD FOLDER
+function logToTerminal(command, output, isError = false) {
+    const panel = document.getElementById('terminal-panel');
+    const termOutput = document.getElementById('terminal-output');
+    
+    panel.classList.remove('hidden'); 
+    
+    termOutput.innerHTML += `\n<span class="text-blue-400">❯ ${command}</span>\n`;
+    
+    if (isError) {
+        termOutput.innerHTML += `<span class="text-red-500 font-bold">❌ STATUS: GAGAL / ERROR</span>\n`;
+        termOutput.innerHTML += `<span class="text-red-400">${output}</span>\n`;
+    } else {
+        termOutput.innerHTML += `<span class="text-green-400 font-bold">✔ STATUS: BERHASIL / SUKSES</span>\n`;
+        if (output) {
+            termOutput.innerHTML += `<span class="text-gray-300">${output}</span>\n`;
+        }
+    }
+    termOutput.scrollTop = termOutput.scrollHeight;
+}
+
 require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
 require(['vs/editor/editor.main'], function() {
     editorInstance = monaco.editor.create(document.getElementById('editor'), {
@@ -54,12 +75,9 @@ require(['vs/editor/editor.main'], function() {
         saveActiveFile();
     });
 
-    if (currentFolderPath) {
-        loadFolderData(currentFolderPath);
-    }
+    if (currentFolderPath) loadFolderData(currentFolderPath);
 });
 
-// 2. UI: SIDEBAR RESIZER
 const sidebar = document.getElementById('sidebar');
 const resizer = document.getElementById('resizer');
 let isResizing = false;
@@ -76,13 +94,11 @@ window.addEventListener('mouseup', () => {
     document.body.style.cursor = 'default';
 });
 
-// 3. TAB MANAGEMENT & UNSAVED INDICATOR
 const tabBar = document.getElementById('tab-bar');
 const welcomeScreen = document.getElementById('welcome-screen');
 
 function renderTabs() {
     tabBar.innerHTML = '';
-    
     if (tabs.length === 0) {
         tabBar.classList.add('hidden');
         if (welcomeScreen) welcomeScreen.classList.remove('hidden');
@@ -97,7 +113,6 @@ function renderTabs() {
     tabs.forEach(tab => {
         const isActive = tab.path === activeFilePath;
         const tabEl = document.createElement('div');
-        
         tabEl.className = `flex items-center gap-2 px-3 py-1.5 cursor-pointer border-r border-[#333] group shrink-0 select-none ${isActive ? 'bg-[#1e1e1e] text-blue-400 border-t-2 border-t-blue-500' : 'bg-[#2d2d2d] text-gray-400 hover:bg-[#252526]'}`;
         tabEl.onclick = () => switchTab(tab.path);
         
@@ -108,10 +123,7 @@ function renderTabs() {
         const closeBtn = document.createElement('span');
         closeBtn.innerText = '×';
         closeBtn.className = `text-base px-1 rounded hover:bg-[#444] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`;
-        closeBtn.onclick = (e) => {
-            e.stopPropagation(); 
-            closeTab(tab.path);
-        };
+        closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(tab.path); };
 
         tabEl.appendChild(nameSpan);
         tabEl.appendChild(closeBtn);
@@ -131,21 +143,16 @@ function switchTab(filePath) {
 
 function openTab(filePath, content) {
     if (typeof monaco === 'undefined' || !editorInstance) return;
-
     let tab = tabs.find(t => t.path === filePath);
     if (!tab) {
-        const fileName = filePath.split('\\').pop().split('/').pop();
+        const fileName = filePath.split(/[/\\]/).pop();
         const lang = detectLanguage(filePath);
         const model = monaco.editor.createModel(content, lang);
-        
         tab = { path: filePath, name: fileName, model: model, isDirty: false };
         tabs.push(tab);
 
         model.onDidChangeContent(() => {
-            if (!tab.isDirty) {
-                tab.isDirty = true;
-                renderTabs();
-            }
+            if (!tab.isDirty) { tab.isDirty = true; renderTabs(); }
         });
     }
     switchTab(filePath);
@@ -156,144 +163,126 @@ function closeTab(filePath) {
     if (index !== -1) {
         tabs[index].model.dispose(); 
         tabs.splice(index, 1);
-        
         if (activeFilePath === filePath) {
-            if (tabs.length > 0) {
-                const nextIndex = index > 0 ? index - 1 : 0;
-                switchTab(tabs[nextIndex].path);
-            } else {
-                activeFilePath = null;
-                renderTabs();
-            }
-        } else {
-            renderTabs();
-        }
+            if (tabs.length > 0) switchTab(tabs[index > 0 ? index - 1 : 0].path);
+            else { activeFilePath = null; renderTabs(); }
+        } else { renderTabs(); }
     }
 }
 
-// 4. FILE MANAGEMENT & SIDEBAR
 async function saveActiveFile() {
     if (!activeFilePath || !editorInstance) return;
     try {
-        const content = editorInstance.getValue();
-        await SaveFile(activeFilePath, content);
-        
+        await SaveFile(activeFilePath, editorInstance.getValue());
         const tab = tabs.find(t => t.path === activeFilePath);
-        if (tab) {
-            tab.isDirty = false;
-            renderTabs();
-        }
-
-        const btnSave = document.getElementById('btn-save');
-        btnSave.classList.add('bg-green-600', 'text-white');
-        setTimeout(() => btnSave.classList.remove('bg-green-600', 'text-white'), 300);
-        refreshSidebar(); // Refresh untuk update warna git
-    } catch (err) { 
-        console.error("Gagal simpan:", err); 
-    }
+        if (tab) { tab.isDirty = false; renderTabs(); }
+        document.getElementById('btn-save').classList.add('bg-green-600', 'text-white');
+        setTimeout(() => document.getElementById('btn-save').classList.remove('bg-green-600', 'text-white'), 300);
+        refreshSidebar(); 
+    } catch (err) { logToTerminal("System", "Gagal menyimpan file: " + String(err), true); }
 }
 
+const sortFilesSafely = (a, b) => {
+    const isDirA = (a.is_dir === true || a.IsDir === true || a.isDir === true) ? 1 : 0;
+    const isDirB = (b.is_dir === true || b.IsDir === true || b.isDir === true) ? 1 : 0;
+    if (isDirA !== isDirB) return isDirB - isDirA;
+    const nameA = a.name || a.Name || "";
+    const nameB = b.name || b.Name || "";
+    return nameA.localeCompare(nameB);
+};
+
 function createSidebarItem(item, level = 0) {
+    const isDir = item.is_dir === true || item.IsDir === true || item.isDir === true;
+    const itemName = item.name || item.Name || "Unknown";
+    const itemPath = item.path || item.Path || "";
+    const gitState = item.git_state || item.GitState || "";
+
     const wrapper = document.createElement('div');
     wrapper.className = "flex flex-col w-full";
     
-    // Pewarnaan Git Status
     let colorClass = 'text-gray-300';
-    if (item.git_state === 'M') colorClass = 'text-yellow-400';
-    else if (item.git_state === 'U') colorClass = 'text-green-400';
+    if (gitState === 'M') colorClass = 'text-yellow-400';
+    else if (gitState === 'U') colorClass = 'text-green-400';
 
     const div = document.createElement('div');
     div.className = `py-1 cursor-pointer hover:bg-[#37373d] flex items-center justify-between gap-2 text-sm select-none px-2 group ${colorClass}`;
     
-    const icon = getFileIcon(item.name, item.is_dir);
     div.innerHTML = `
         <div class="flex items-center gap-2 truncate">
-            <span class="w-4 flex justify-center items-center shrink-0">${icon}</span> 
-            <span class="truncate">${item.name}</span>
+            <span class="w-4 flex justify-center items-center shrink-0">${getFileIcon(itemName, isDir)}</span> 
+            <span class="truncate">${itemName}</span>
         </div>
         <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button class="btn-rename text-blue-400 hover:text-white px-1">✎</button>
             <button class="btn-del text-red-400 hover:text-white px-1">🗑</button>
         </div>
     `;
-    
     wrapper.appendChild(div);
 
-    // Event Rename
     div.querySelector('.btn-rename').addEventListener('click', async (e) => {
         e.stopPropagation();
-        const newName = prompt("Ganti nama menjadi:", item.name);
-        if (newName && newName !== item.name) {
-            const newPath = item.path.replace(item.name, newName);
-            try { 
-                await RenameItem(item.path, newPath); 
-                refreshSidebar(); 
-            } catch (err) { 
-                ShowAlert("Error Rename", String(err), "error"); 
-            }
+        const newName = prompt("Ganti nama menjadi:", itemName);
+        if (newName && newName !== itemName) {
+            try { await RenameItem(itemPath, itemPath.replace(itemName, newName)); refreshSidebar(); } 
+            catch (err) { logToTerminal("System", "Gagal mengganti nama: " + String(err), true); }
         }
     });
 
-    // Event Delete
     div.querySelector('.btn-del').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm(`Yakin ingin menghapus ${item.name} secara permanen?`)) {
+        if (confirm(`Yakin ingin menghapus ${itemName} secara permanen?`)) {
             try { 
-                await DeleteItem(item.path); 
-                refreshSidebar(); 
-                if (activeFilePath === item.path) closeTab(item.path);
-            } catch (err) { 
-                ShowAlert("Error Hapus", String(err), "error"); 
-            }
+                await DeleteItem(itemPath); refreshSidebar(); 
+                if (activeFilePath === itemPath) closeTab(itemPath);
+            } catch (err) { logToTerminal("System", "Gagal menghapus file: " + String(err), true); }
         }
     });
 
-    if (item.is_dir) {
+    // FIX UX: Pertahankan status toggle folder berdasarkan `expandedFolders` Set
+    if (isDir) {
         const subContainer = document.createElement('div');
         subContainer.className = 'hidden flex-col border-l border-[#444]/40 pl-3 ml-3 my-0.5';
         wrapper.appendChild(subContainer);
-        
         let isLoaded = false;
-        let isOpen = false;
+        
+        const openFolder = async () => {
+            if (!isLoaded) {
+                const subfiles = await GetFolderContents(itemPath);
+                (subfiles || []).sort(sortFilesSafely).forEach(s => subContainer.appendChild(createSidebarItem(s, level + 1)));
+                isLoaded = true;
+            }
+            subContainer.classList.remove('hidden'); 
+            div.querySelector('.w-4').innerHTML = '📂';
+            expandedFolders.add(itemPath);
+        };
 
+        const closeFolder = () => {
+            subContainer.classList.add('hidden'); 
+            div.querySelector('.w-4').innerHTML = '📁';
+            expandedFolders.delete(itemPath);
+        };
+        
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
-            isOpen = !isOpen;
-            
-            if (isOpen) {
-                if (!isLoaded) {
-                    try {
-                        const subfiles = await GetFolderContents(item.path);
-                        const sortedSubfiles = (subfiles || []).sort((a, b) => b.is_dir - a.is_dir || a.name.localeCompare(b.name));
-                        
-                        sortedSubfiles.forEach(subItem => {
-                            subContainer.appendChild(createSidebarItem(subItem, level + 1));
-                        });
-                        isLoaded = true;
-                    } catch (err) { console.error("Gagal baca subfolder", err); }
-                }
-                subContainer.classList.remove('hidden');
-                div.querySelector('.w-4').innerHTML = '📂'; 
-            } else {
-                subContainer.classList.add('hidden');
-                div.querySelector('.w-4').innerHTML = '📁'; 
+            if (subContainer.classList.contains('hidden')) {
+                await openFolder();
+            } else { 
+                closeFolder(); 
             }
         });
+
+        // Buka otomatis jika folder ini sebelumnya di-expand
+        if (expandedFolders.has(itemPath)) {
+            openFolder();
+        }
     } else {
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (activeFilePath === item.path) return;
-            if (tabs.find(t => t.path === item.path)) {
-                switchTab(item.path);
-            } else {
-                try {
-                    const content = await ReadFileByPath(item.path);
-                    openTab(item.path, content);
-                } catch (err) { console.error("Gagal baca file", err); }
-            }
+            if (activeFilePath === itemPath) return;
+            try { openTab(itemPath, await ReadFileByPath(itemPath)); } 
+            catch (err) { logToTerminal("System", "Gagal membuka file: " + String(err), true); }
         });
     }
-
     return wrapper;
 }
 
@@ -301,130 +290,171 @@ async function loadFolderData(basePath) {
     try {
         currentFolderPath = basePath;
         localStorage.setItem('lastFolder', basePath);
-        
         document.getElementById('sidebar').classList.remove('hidden');
         document.getElementById('resizer').classList.remove('hidden');
         document.getElementById('terminal-panel').classList.remove('hidden');
-        document.getElementById('folder-name').innerText = basePath.split('\\').pop().split('/').pop();
-        
+        document.getElementById('folder-name').innerText = basePath.split(/[/\\]/).pop();
+        expandedFolders.clear(); // Bersihkan memori path saat ganti base folder
         await refreshSidebar();
-    } catch (err) {
-        console.error("Gagal meload folder", err);
-    }
+    } catch (err) { logToTerminal("System", "Gagal meload folder.", true); }
 }
 
 async function refreshSidebar() {
     if (!currentFolderPath) return;
     try {
-        const fileListContainer = document.getElementById('file-list');
-        fileListContainer.innerHTML = ''; 
-        
+        const list = document.getElementById('file-list');
+        list.innerHTML = ''; 
         const files = await GetFolderContents(currentFolderPath);
-        const sortedFiles = (files || []).sort((a, b) => b.is_dir - a.is_dir || a.name.localeCompare(b.name));
-        
-        sortedFiles.forEach(item => {
-            fileListContainer.appendChild(createSidebarItem(item, 0));
-        });
-    } catch (err) {
-        console.error("Gagal refresh sidebar", err);
-    }
+        (files || []).sort(sortFilesSafely).forEach(item => list.appendChild(createSidebarItem(item, 0)));
+    } catch (err) { logToTerminal("System", "Gagal refresh sidebar: " + String(err), true); }
 }
 
-// 5. EVENT LISTENER UTAMA
 document.getElementById('btn-open-folder').addEventListener('click', async () => {
-    try {
-        const result = await OpenFolderDialog();
-        if (result && result.base_path) {
-            loadFolderData(result.base_path);
-        }
-    } catch (err) { console.error("Error buka folder:", err); }
+    const result = await OpenFolderDialog();
+    if (result && result.base_path) loadFolderData(result.base_path);
 });
-
 document.getElementById('btn-open').addEventListener('click', async () => {
-    try {
-        const fileInfo = await OpenFile();
-        if (fileInfo && fileInfo.path) openTab(fileInfo.path, fileInfo.content);
-    } catch (err) { console.error(err); }
+    const fileInfo = await OpenFile();
+    if (fileInfo && fileInfo.path) openTab(fileInfo.path, fileInfo.content);
 });
-
 document.getElementById('btn-save').addEventListener('click', saveActiveFile);
 document.getElementById('btn-refresh').addEventListener('click', refreshSidebar);
 
 document.getElementById('btn-new-file').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!currentFolderPath) return ShowAlert("Warning", "Buka folder project dulu, bro!", "error");
-    const name = prompt("Masukkan nama file baru (termasuk ekstensi):");
-    if (name) {
-        await CreateNewFile(`${currentFolderPath}/${name}`);
-        refreshSidebar();
-    }
+    if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat file!", true);
+    const name = prompt("Nama file baru:");
+    if (name) { await CreateNewFile(`${currentFolderPath}/${name}`); refreshSidebar(); }
 });
-
 document.getElementById('btn-new-folder').addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!currentFolderPath) return ShowAlert("Warning", "Buka folder project dulu, bro!", "error");
-    const name = prompt("Masukkan nama folder baru:");
-    if (name) {
-        await CreateNewFolder(`${currentFolderPath}/${name}`);
-        refreshSidebar();
-    }
+    if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat folder!", true);
+    const name = prompt("Nama folder baru:");
+    if (name) { await CreateNewFolder(`${currentFolderPath}/${name}`); refreshSidebar(); }
 });
 
 window.addEventListener('keydown', (e) => {
-    const isCtrl = e.ctrlKey || e.metaKey;
-    if (isCtrl && e.key.toLowerCase() === 's') {
-        e.preventDefault(); 
-        saveActiveFile();
-    }
-    if (isCtrl && e.key.toLowerCase() === 'w') {
-        e.preventDefault(); 
-        if (activeFilePath) closeTab(activeFilePath);
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveActiveFile(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') { e.preventDefault(); if (activeFilePath) closeTab(activeFilePath); }
 });
 
-// 6. TERMINAL
 const termOutput = document.getElementById('terminal-output');
 const termInput = document.getElementById('terminal-input');
-document.getElementById('btn-close-terminal').addEventListener('click', () => {
-    document.getElementById('terminal-panel').classList.add('hidden');
-});
+document.getElementById('btn-close-terminal').addEventListener('click', () => document.getElementById('terminal-panel').classList.add('hidden'));
 
+let terminalState = 'NORMAL'; 
+let setupData = { name: '', email: '', remote: '' };
+
+// FIX: Set status busy untuk input saat proses background berjalan
 termInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
+        if (termInput.disabled) return; 
+
         const cmd = termInput.value.trim();
-        if (!cmd) return;
         
+        if (terminalState === 'NORMAL') {
+            if (!cmd) return;
+            termInput.value = '';
+            termInput.disabled = true;
+            termInput.placeholder = "⏳ Memproses...";
+            termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
+            
+            try { 
+                termOutput.innerHTML += await RunCommand(currentFolderPath, cmd); 
+            } catch (err) { 
+                termOutput.innerHTML += `<span class="text-red-400">${err}</span>`; 
+            } finally {
+                termOutput.scrollTop = termOutput.scrollHeight;
+                refreshSidebar();
+                termInput.disabled = false;
+                termInput.placeholder = "Ketik perintah di sini (misal: npm i, go run main.go)...";
+                termInput.focus();
+            }
+            return;
+        }
+
+        // Logic State Machine (Git Config / Reset)
         termInput.value = '';
-        termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
-        termOutput.scrollTop = termOutput.scrollHeight;
-        
-        try {
-            const out = await RunCommand(currentFolderPath, cmd);
-            termOutput.innerHTML += out;
-        } catch (err) { 
-            termOutput.innerHTML += `<span class="text-red-400">${err}</span>`; 
+        termOutput.innerHTML += `<span class="text-yellow-400">${cmd}</span>\n`; 
+
+        if (terminalState === 'AWAITING_SETUP_NAME') {
+            if (!cmd) {
+                termOutput.innerHTML += `<span class="text-red-400">✖ Nama tidak boleh kosong. Setup dibatalkan.</span>\n`;
+                terminalState = 'NORMAL';
+            } else {
+                setupData.name = cmd;
+                terminalState = 'AWAITING_SETUP_EMAIL';
+                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 2. Masukkan Email (contoh: user@mail.com): </span>`;
+            }
+        } 
+        else if (terminalState === 'AWAITING_SETUP_EMAIL') {
+            if (!cmd) {
+                termOutput.innerHTML += `<span class="text-red-400">✖ Email tidak boleh kosong. Setup dibatalkan.</span>\n`;
+                terminalState = 'NORMAL';
+            } else {
+                setupData.email = cmd;
+                terminalState = 'AWAITING_SETUP_REMOTE';
+                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 3. Masukkan URL GitHub Repo (Kosongkan/Enter jika tidak ada): </span>`;
+            }
+        }
+        else if (terminalState === 'AWAITING_SETUP_REMOTE') {
+            setupData.remote = cmd;
+            terminalState = 'NORMAL'; 
+            termOutput.innerHTML += `<span class="text-gray-300">Memproses Git Setup...</span>\n`;
+            
+            termInput.disabled = true;
+            try {
+                await SetGitConfig(setupData.name, setupData.email);
+                logToTerminal("System", "✔ Git User Config berhasil disetup.");
+                
+                if (setupData.remote && currentFolderPath) {
+                    await AddGitRemote(currentFolderPath, setupData.remote);
+                    logToTerminal("System", `✔ Remote origin disetup ke ${setupData.remote}`);
+                    await RunCommand(currentFolderPath, "git branch -M main");
+                }
+                logToTerminal("Git Setup", "Setup Selesai dan Berhasil Disimpan! 🎉");
+            } catch (err) {
+                logToTerminal("Git Setup Error", String(err), true);
+            } finally {
+                termInput.disabled = false;
+                termInput.focus();
+            }
+        }
+        else if (terminalState === 'AWAITING_RESET_CONFIRM') {
+            terminalState = 'NORMAL';
+            if (cmd.toLowerCase() === 'y' || cmd.toLowerCase() === 'yes') {
+                termOutput.innerHTML += `<span class="text-yellow-400">Memproses Git Reset --hard HEAD...</span>\n`;
+                termInput.disabled = true;
+                try {
+                    const output = await GitReset(currentFolderPath);
+                    logToTerminal("git reset --hard HEAD", output);
+                    refreshSidebar();
+                } catch (err) {
+                    logToTerminal("git reset --hard HEAD", String(err), true);
+                } finally {
+                    termInput.disabled = false;
+                    termInput.focus();
+                }
+            } else {
+                termOutput.innerHTML += `<span class="text-gray-400">✔ Git Reset dibatalkan.</span>\n`;
+            }
         }
         termOutput.scrollTop = termOutput.scrollHeight;
-        refreshSidebar(); 
     }
 });
 
-// 7. GIT INTEGRATION
 const btnGitPull = document.getElementById('btn-git-pull');
 btnGitPull.addEventListener('click', async () => {
-    if (!currentFolderPath) return ShowAlert("Peringatan", "Buka folder project dulu ya!", "error");
-    
+    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum pull!", true);
     const originalText = btnGitPull.innerText;
     btnGitPull.innerText = "⏳ Pulling..."; 
     try {
         const output = await GitPull(currentFolderPath);
-        ShowAlert("Git Pull Sukses", output, "info");
+        logToTerminal("git pull origin main", output);
         refreshSidebar();
     } catch (err) {
-        ShowAlert("Git Pull Gagal", String(err), "error");
-    } finally {
-        btnGitPull.innerText = originalText;
-    }
+        logToTerminal("git pull origin main", String(err), true);
+    } finally { btnGitPull.innerText = originalText; }
 });
 
 const commitModal = document.getElementById('commit-modal');
@@ -432,72 +462,74 @@ const commitInput = document.getElementById('commit-message');
 const btnGitPush = document.getElementById('btn-git-push');
 
 btnGitPush.addEventListener('click', () => {
-    if (!currentFolderPath) return ShowAlert("Peringatan", "Buka folder project dulu ya!", "error");
-    commitModal.classList.remove('hidden');
-    commitInput.focus(); 
+    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum push!", true);
+    commitModal.classList.remove('hidden'); commitInput.focus(); 
 });
-
-document.getElementById('btn-cancel-commit').addEventListener('click', () => {
-    commitModal.classList.add('hidden');
-    commitInput.value = ''; 
-});
+document.getElementById('btn-cancel-commit').addEventListener('click', () => { commitModal.classList.add('hidden'); commitInput.value = ''; });
 
 document.getElementById('btn-submit-commit').addEventListener('click', async () => {
     const message = commitInput.value.trim() || "Update files via NgAppID Editor";
-    commitModal.classList.add('hidden');
-    commitInput.value = '';
-    
+    commitModal.classList.add('hidden'); commitInput.value = '';
     const originalText = btnGitPush.innerText;
     btnGitPush.innerText = "⏳ Pushing...";
     try {
         const output = await GitCommitAndPush(currentFolderPath, message);
-        ShowAlert("Git Push Sukses", output, "info");
+        logToTerminal(`git commit -m "${message}" && git push -u origin main`, output);
         refreshSidebar();
     } catch (err) {
-        ShowAlert("Git Push Gagal", String(err), "error");
-    } finally {
-        btnGitPush.innerText = originalText;
-    }
+        logToTerminal("git commit & push", String(err), true);
+    } finally { btnGitPush.innerText = originalText; }
 });
-
-commitInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('btn-submit-commit').click();
-});
+commitInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-submit-commit').click(); });
 
 document.getElementById('btn-git-init').addEventListener('click', async () => {
-    if (!currentFolderPath) return ShowAlert("Peringatan", "Buka folder project dulu ya!", "error");
+    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum init repo!", true);
     try { 
-        await GitInit(currentFolderPath); 
-        ShowAlert("Sukses", "Git Repository berhasil diinisialisasi!", "info"); 
+        const output = await GitInit(currentFolderPath); 
+        logToTerminal("git init", output);
         refreshSidebar(); 
     } catch (err) { 
-        ShowAlert("Error", String(err), "error"); 
+        logToTerminal("git init", String(err), true);
     }
 });
 
-// Dropdown Git Menu
-const btnGitMenu = document.getElementById('btn-git-menu');
+const btnGitReset = document.getElementById('btn-git-reset');
+btnGitReset.addEventListener('click', () => {
+    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum reset!", true);
+    
+    const panel = document.getElementById('terminal-panel');
+    panel.classList.remove('hidden'); 
+    
+    terminalState = 'AWAITING_RESET_CONFIRM';
+    
+    termOutput.innerHTML += `\n<span class="text-red-400 font-bold">⚠️ PERINGATAN: Git Reset akan menghapus SEMUA perubahan kode yang belum di-commit!</span>\n`;
+    termOutput.innerHTML += `<span class="text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
+    termOutput.scrollTop = termOutput.scrollHeight;
+    termInput.focus();
+});
+
+const btnGitSetup = document.getElementById('btn-git-setup');
+btnGitSetup.addEventListener('click', () => { 
+    document.getElementById('git-dropdown').classList.add('hidden'); 
+    
+    const panel = document.getElementById('terminal-panel');
+    panel.classList.remove('hidden'); 
+    
+    terminalState = 'AWAITING_SETUP_NAME';
+    setupData = { name: '', email: '', remote: '' };
+    
+    termOutput.innerHTML += `\n<span class="text-blue-400 font-bold">--- MEMULAI GIT SETUP ---</span>\n`;
+    termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 1. Masukkan Nama (contoh: John Doe): </span>`;
+    termOutput.scrollTop = termOutput.scrollHeight;
+    termInput.focus();
+});
+
 const gitDropdown = document.getElementById('git-dropdown');
+document.getElementById('btn-git-menu').addEventListener('click', (e) => { e.stopPropagation(); gitDropdown.classList.toggle('hidden'); });
+window.addEventListener('click', () => { if (!gitDropdown.classList.contains('hidden')) gitDropdown.classList.add('hidden'); });
 
-btnGitMenu.addEventListener('click', (e) => {
-    e.stopPropagation();
-    gitDropdown.classList.toggle('hidden');
-});
-
-btnGitPull.addEventListener('click', () => gitDropdown.classList.add('hidden'));
-btnGitPush.addEventListener('click', () => gitDropdown.classList.add('hidden'));
-document.getElementById('btn-git-init').addEventListener('click', () => gitDropdown.classList.add('hidden'));
-
-window.addEventListener('click', () => {
-    if (!gitDropdown.classList.contains('hidden')) {
-        gitDropdown.classList.add('hidden');
-    }
-});
-
-// --- DISABLE RIGHT CLICK (CONTEXT MENU) DI LUAR EDITOR ---
-window.addEventListener('contextmenu', (e) => {
-    // Cek apakah yang diklik kanan itu BUKAN bagian dari area editor
-    if (!e.target.closest('#editor')) {
-        e.preventDefault(); // Matikan klik kanan bawaan
-    }
+document.addEventListener('contextmenu', (e) => {
+    const editorArea = document.getElementById('editor');
+    const terminalInput = document.getElementById('terminal-input');
+    if (!editorArea.contains(e.target) && e.target !== terminalInput) e.preventDefault();
 });
