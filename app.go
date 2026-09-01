@@ -159,7 +159,7 @@ func (a *App) GitCommitAndPush(projectPath string, message string) (string, erro
 
 	// Step 3: Otomatis Commit
 	if message == "" {
-		message = "Update via NgAppID Editor"
+		message = "Update via NgAppID Code Editor"
 	}
 	cmdCommit := exec.Command("git", "commit", "-m", message)
 	cmdCommit.Dir = projectPath
@@ -197,7 +197,7 @@ func (a *App) GitReset(projectPath string) (string, error) {
 		addCmd.Dir = projectPath
 		addCmd.Run() // Fix: Eksekusi command dengan .Run()
 
-		commitCmd := exec.Command("git", "commit", "--allow-empty", "-m", "Initial commit by NgAppID Editor")
+		commitCmd := exec.Command("git", "commit", "--allow-empty", "-m", "Initial commit by NgAppID Code Editor")
 		commitCmd.Dir = projectPath
 		outCommit, errCommit := commitCmd.CombinedOutput()
 		if errCommit != nil {

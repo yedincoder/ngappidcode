@@ -384,7 +384,7 @@ termInput.addEventListener('keydown', async (e) => {
             } else {
                 setupData.name = cmd;
                 terminalState = 'AWAITING_SETUP_EMAIL';
-                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 2. Masukkan Email (contoh: user@mail.com): </span>`;
+                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 2. Masukkan Email (contoh: me@yedin.my.id): </span>`;
             }
         } 
         else if (terminalState === 'AWAITING_SETUP_EMAIL') {
@@ -519,7 +519,7 @@ btnGitSetup.addEventListener('click', () => {
     setupData = { name: '', email: '', remote: '' };
     
     termOutput.innerHTML += `\n<span class="text-blue-400 font-bold">--- MEMULAI GIT SETUP ---</span>\n`;
-    termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 1. Masukkan Nama (contoh: John Doe): </span>`;
+    termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 1. Masukkan Nama (contoh: Yedin Coder): </span>`;
     termOutput.scrollTop = termOutput.scrollHeight;
     termInput.focus();
 });

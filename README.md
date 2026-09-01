@@ -1,6 +1,6 @@
-# 🚀 NgAppID Editor
+# 🚀 NgAppID Code Editor
 
-**NgAppID Editor** adalah code editor desktop ringan, modern, dan *feature-rich* yang dirancang khusus untuk para developer yang menginginkan pengalaman ngoding cepat tanpa ribet. Dibangun menggunakan teknologi web modern di sisi antarmuka dan performa tinggi di backend untuk menjamin eksekusi yang responsif.
+**NgAppID Code Editor** adalah code editor desktop ringan, modern, dan *feature-rich* yang dirancang khusus untuk para developer yang menginginkan pengalaman ngoding cepat tanpa ribet. Dibangun menggunakan teknologi web modern di sisi antarmuka dan performa tinggi di backend untuk menjamin eksekusi yang responsif.
 
 ---
 
