@@ -406,18 +406,60 @@ document.getElementById('btn-close-terminal').addEventListener('click', () => do
 let terminalState = 'NORMAL'; 
 let setupData = { name: '', email: '', remote: '' };
 
+// FIX: Set status busy untuk input saat proses background berjalan
 termInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
         if (termInput.disabled) return; 
 
         const cmd = termInput.value.trim();
+        const cmdLower = cmd.toLowerCase();
         
         if (terminalState === 'NORMAL') {
             if (!cmd) return;
             termInput.value = '';
+            
+            // --- CUSTOM COMMANDS (NgAppID Built-in) ---
+            if (cmdLower === 'clear' || cmdLower === 'cls') {
+                termOutput.innerHTML = '';
+                return;
+            }
+            
+            termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
+            
+            if (cmdLower === 'help') {
+                termOutput.innerHTML += `<span class="text-blue-300 font-bold">Perintah bawaan NgAppID Code Editor:</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">help</span>      <span class="text-gray-400">- Menampilkan menu bantuan ini</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">about</span>     <span class="text-gray-400">- Informasi tentang aplikasi dan developer</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">dev</span> <span class="text-gray-400">- Menampilkan profil pembuat aplikasi</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">clear</span>     <span class="text-gray-400">- Membersihkan layar terminal</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">version</span>   <span class="text-gray-400">- Menampilkan versi aplikasi saat ini</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-500">----------------------------------------------------</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-400">💡 Kamu juga bisa menjalankan perintah OS bawaan (npm, git, go, dir, ls, dll).</span>\n`;
+                termOutput.scrollTop = termOutput.scrollHeight;
+                return;
+            }
+            else if (cmdLower === 'about' || cmdLower === 'dev') {
+                termOutput.innerHTML += `<span class="text-blue-400 font-bold">🚀 NgAppID Code Editor</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Sebuah karya untuk kemudahan developer di seluruh Nusantara.</span>\n\n`;
+                termOutput.innerHTML += `<span class="text-yellow-400 font-bold">👨‍💻 Developer Info:</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Author  : Yedi Nurwali (YedinCoder)</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Team    : NgAppID</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Website : <a href="https://yedin.my.id" target="_blank" class="text-blue-400 hover:underline">yedin.my.id</a> | <a href="https://ngappid.com" target="_blank" class="text-blue-400 hover:underline">ngappid.com</a> | <a href="https://dev.ngappid.com" target="_blank" class="text-blue-400 hover:underline">dev.ngappid.com</a> | <a href="https://github.com/yedincoder" target="_blank" class="text-blue-400 hover:underline">Github</a></span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Kontak  : 081802161315</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Email   : yedincoder@gmail.com</span>\n`;
+                termOutput.scrollTop = termOutput.scrollHeight;
+                return;
+            }
+            else if (cmdLower === 'version') {
+                termOutput.innerHTML += `<span class="text-cyan-400">NgAppID Code Editor Version: <strong>${window.APP_VERSION || 'Unknown'}</strong></span>\n`;
+                termOutput.scrollTop = termOutput.scrollHeight;
+                return;
+            }
+            // --- END CUSTOM COMMANDS ---
+
+            // Eksekusi OS Command standar jika bukan perintah bawaan
             termInput.disabled = true;
             termInput.placeholder = "⏳ Memproses...";
-            termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
             
             try { 
                 termOutput.innerHTML += await RunCommand(currentFolderPath, cmd); 
@@ -427,14 +469,17 @@ termInput.addEventListener('keydown', async (e) => {
                 termOutput.scrollTop = termOutput.scrollHeight;
                 refreshSidebar();
                 termInput.disabled = false;
-                termInput.placeholder = "Ketik perintah di sini (misal: npm i, go run main.go)...";
+                termInput.placeholder = "Ketik perintah di sini (misal: help, npm i, go run main.go)...";
                 termInput.focus();
             }
             return;
         }
 
+        // Logic State Machine (Git Config / Reset) - JANGAN DIHAPUS, TETAP DI BAWAH SINI
         termInput.value = '';
         termOutput.innerHTML += `<span class="text-yellow-400">${cmd}</span>\n`; 
+        
+        // ... (kode AWAITING_SETUP_NAME dan kawan-kawan berlanjut di sini)
 
         if (terminalState === 'AWAITING_SETUP_NAME') {
             if (!cmd) {
