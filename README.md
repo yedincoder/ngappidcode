@@ -4,10 +4,27 @@
 
 ---
 
+## 🖼️ Tampilan Aplikasi
+
+<p align="center">
+  <img src="screenshoot.png" alt="NgAppID Code Editor Screenshot 1" width="48%" style="border-radius: 8px; margin-right: 1%;" />
+  <img src="screenshoot1.png" alt="NgAppID Code Editor Screenshot 2" width="48%" style="border-radius: 8px;" />
+</p>
+
+---
+
 ## 🛠 Tech Stack
-* **Frontend:** HTML5, Tailwind CSS, Monaco Editor (*core engine* andalan yang sama dengan VS Code).
-* **Backend:** Go (Golang) untuk performa eksekusi sistem, manajemen direktori, dan operasi *file/git*.
-* **Bridge:** Wails Framework (menghubungkan Go dan Web Frontend secara *native*).
+* **Frontend:** 
+  <img src="https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white" alt="HTML5" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Monaco_Editor-007ACC?style=flat&logo=visual-studio-code&logoColor=white" alt="Monaco Editor" />
+* **Backend:** 
+  <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white" alt="Node.js" />
+* **Bridge:** 
+  <img src="https://img.shields.io/badge/Wails-00B4AB?style=flat&logo=wails&logoColor=white" alt="Wails" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black" alt="JavaScript" />
 
 ---
 
@@ -16,7 +33,7 @@
 ### 1. 📁 File & Project Management
 * **Open & Save File:** Mendukung pembukaan dan penyimpanan file kode secara langsung dengan integrasi *shortcut* keyboard (`Ctrl+S`).
 * **Explorer Sidebar:** Navigasi folder project persisten yang mempertahankan status folder terbuka, lengkap dengan ikon teknologi spesifik (Go, PHP, JS, HTML, CSS, dll.).
-* **Git Status Color Coding:** File yang dimodifikasi (`Modified` - Kuning) atau file baru (`Untracked` - Hijau) langsung di- *highlight* di sidebar secara *real-time*.
+* **Git Status Color Coding:** File yang dimodifikasi (`Modified` - Kuning) atau file baru (`Untracked` - Hijau) langsung di-*highlight* di sidebar secara *real-time*.
 * **File Operations:** Buat file/folder baru, *rename*, dan hapus file langsung dari *interface* editor.
 
 ### 2. 🔀 Smart Git Integration (Ramah Pemula)
@@ -45,10 +62,6 @@ Pastikan di komputer kamu sudah terinstal **Go**, **Node.js**, dan **Wails CLI**
 2. Jalankan perintah mode *development* Wails (mendukung *live reload*):
    ```bash
    wails dev
-   ```
-3. Untuk melakukan proses *build* / kompilasi menjadi file *executable* siap pakai (`.exe`, `.app`, atau *binary* Linux):
-   ```bash
-   wails build
    ```
 
 ---
