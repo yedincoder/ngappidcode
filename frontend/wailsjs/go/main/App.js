@@ -82,6 +82,10 @@ export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }
 
+export function RunLiveCommand(arg1, arg2) {
+  return window['go']['main']['App']['RunLiveCommand'](arg1, arg2);
+}
+
 export function SaveFile(arg1, arg2) {
   return window['go']['main']['App']['SaveFile'](arg1, arg2);
 }
@@ -92,4 +96,8 @@ export function SearchInFiles(arg1, arg2) {
 
 export function SetGitConfig(arg1, arg2) {
   return window['go']['main']['App']['SetGitConfig'](arg1, arg2);
+}
+
+export function StopLiveCommand() {
+  return window['go']['main']['App']['StopLiveCommand']();
 }
