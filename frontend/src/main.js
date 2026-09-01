@@ -207,27 +207,90 @@ function createSidebarItem(item, level = 0) {
     const div = document.createElement('div');
     div.className = `py-1 cursor-pointer hover:bg-[#37373d] flex items-center justify-between gap-2 text-sm select-none px-2 group ${colorClass}`;
     
+    // Perbaikan struktur HTML agar input bisa muat di dalam barisnya
     div.innerHTML = `
-        <div class="flex items-center gap-2 truncate">
+        <div class="flex items-center gap-2 truncate flex-1 min-w-0">
             <span class="w-4 flex justify-center items-center shrink-0">${getFileIcon(itemName, isDir)}</span> 
-            <span class="truncate">${itemName}</span>
+            <span class="name-display truncate flex-1">${itemName}</span>
         </div>
-        <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button class="btn-rename text-blue-400 hover:text-white px-1">✎</button>
             <button class="btn-del text-red-400 hover:text-white px-1">🗑</button>
         </div>
     `;
     wrapper.appendChild(div);
 
-    div.querySelector('.btn-rename').addEventListener('click', async (e) => {
+    const nameDisplay = div.querySelector('.name-display');
+
+    // -- LOGIKA INLINE RENAME --
+    div.querySelector('.btn-rename').addEventListener('click', (e) => {
         e.stopPropagation();
-        const newName = prompt("Ganti nama menjadi:", itemName);
-        if (newName && newName !== itemName) {
-            try { await RenameItem(itemPath, itemPath.replace(itemName, newName)); refreshSidebar(); } 
-            catch (err) { logToTerminal("System", "Gagal mengganti nama: " + String(err), true); }
+        
+        if (div.querySelector('.rename-input')) return; // Cegah input ganda kalau diklik berkali-kali
+
+        // Buat elemen input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = itemName;
+        input.className = 'rename-input bg-[#1e1e1e] text-white px-1 border border-blue-500 rounded text-xs w-full outline-none focus:ring-1 focus:ring-blue-500';
+
+        // Sembunyikan teks asli, munculkan input
+        nameDisplay.style.display = 'none';
+        nameDisplay.parentNode.insertBefore(input, nameDisplay.nextSibling);
+
+        // Fokus ke input dan select teks
+        input.focus();
+        const dotIndex = itemName.lastIndexOf('.');
+        if (!isDir && dotIndex > 0) {
+            input.setSelectionRange(0, dotIndex); // Select nama tanpa ekstensi
+        } else {
+            input.select(); // Select semua kalau folder
         }
+
+        let isProcessing = false;
+
+        const finishRename = async (save) => {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            const newName = input.value.trim();
+            input.remove();
+            nameDisplay.style.display = '';
+
+            if (save && newName && newName !== itemName) {
+                try {
+                    // Logic aman untuk replace nama di akhir path
+                    const newPath = itemPath.substring(0, itemPath.lastIndexOf(itemName)) + newName;
+                    await RenameItem(itemPath, newPath);
+                    
+                    // Update tab jika file yang di-rename sedang terbuka
+                    if (activeFilePath === itemPath) {
+                        activeFilePath = newPath;
+                        const tab = tabs.find(t => t.path === itemPath);
+                        if (tab) {
+                            tab.path = newPath;
+                            tab.name = newName;
+                            renderTabs();
+                            document.getElementById('file-path').innerText = newPath;
+                        }
+                    }
+                    refreshSidebar(); 
+                } catch (err) { 
+                    logToTerminal("System", "Gagal mengganti nama: " + String(err), true); 
+                }
+            }
+        };
+
+        input.addEventListener('blur', () => finishRename(true)); // Save saat klik di luar
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') finishRename(true);
+            if (e.key === 'Escape') finishRename(false);
+            e.stopPropagation(); // Mencegah shortcut Wails/Editor terpicu
+        });
+        input.addEventListener('click', (e) => e.stopPropagation());
     });
 
+    // -- LOGIKA HAPUS --
     div.querySelector('.btn-del').addEventListener('click', async (e) => {
         e.stopPropagation();
         if (confirm(`Yakin ingin menghapus ${itemName} secara permanen?`)) {
@@ -238,7 +301,7 @@ function createSidebarItem(item, level = 0) {
         }
     });
 
-    // FIX UX: Pertahankan status toggle folder berdasarkan `expandedFolders` Set
+    // -- LOGIKA FOLDER EXPAND/COLLAPSE --
     if (isDir) {
         const subContainer = document.createElement('div');
         subContainer.className = 'hidden flex-col border-l border-[#444]/40 pl-3 ml-3 my-0.5';
@@ -271,11 +334,11 @@ function createSidebarItem(item, level = 0) {
             }
         });
 
-        // Buka otomatis jika folder ini sebelumnya di-expand
         if (expandedFolders.has(itemPath)) {
             openFolder();
         }
     } else {
+        // -- LOGIKA BUKA FILE --
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
             if (activeFilePath === itemPath) return;
