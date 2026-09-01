@@ -18,6 +18,22 @@ export function DeleteItem(arg1) {
   return window['go']['main']['App']['DeleteItem'](arg1);
 }
 
+export function FTPConnect(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['FTPConnect'](arg1, arg2, arg3, arg4);
+}
+
+export function FTPDisconnect() {
+  return window['go']['main']['App']['FTPDisconnect']();
+}
+
+export function FTPReadFile(arg1) {
+  return window['go']['main']['App']['FTPReadFile'](arg1);
+}
+
+export function FTPSaveFile(arg1, arg2) {
+  return window['go']['main']['App']['FTPSaveFile'](arg1, arg2);
+}
+
 export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }

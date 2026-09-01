@@ -10,6 +10,14 @@ export function CreateNewFolder(arg1:string):Promise<void>;
 
 export function DeleteItem(arg1:string):Promise<void>;
 
+export function FTPConnect(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
+export function FTPDisconnect():Promise<string>;
+
+export function FTPReadFile(arg1:string):Promise<string>;
+
+export function FTPSaveFile(arg1:string,arg2:string):Promise<string>;
+
 export function GetAppVersion():Promise<string>;
 
 export function GetFolderContents(arg1:string):Promise<Array<main.FileItem>>;

@@ -1,130 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark"> <!-- Class 'dark' sebagai default bawaan -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NgAppID Code Editor</title>
+    
+    <!-- Script untuk mencegah FOUC (Flash warna putih sebelum tema dirender) -->
+    <script>
+        const conf = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark' };
+        if (conf.theme === 'vs') document.documentElement.classList.remove('dark');
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Konfigurasi Tailwind untuk mendeteksi class 'dark' -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: {} }
+        }
+    </script>
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+    
     <style>
         html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+        
+        /* Scrollbar Dinamis (Light/Dark) */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e1e1e; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-        .resizer { width: 4px; cursor: col-resize; background: #333333; z-index: 10; transition: background 0.2s; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        .dark ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        /* Resizer Dinamis */
+        .resizer { width: 4px; cursor: col-resize; background: #e5e7eb; z-index: 10; transition: background 0.2s; }
+        .dark .resizer { background: #333333; }
         .resizer:hover, .resizer:active { background: #007acc; }
+        .dark .resizer:hover, .dark .resizer:active { background: #007acc; }
     </style>
 </head>
-<body class="bg-[#1e1e1e] text-white flex flex-col h-screen select-none">
+<body class="bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-white flex flex-col h-screen select-none transition-colors duration-200">
     
     <!-- Topbar -->
-    <div class="h-10 bg-[#252526] flex items-center px-4 space-x-2 border-b border-[#333333] text-sm shrink-0 relative">
-	<div class="flex items-center gap-2 mr-1 cursor-default select-none">
+    <div class="h-10 bg-gray-100 dark:bg-[#252526] flex items-center px-4 space-x-2 border-b border-gray-300 dark:border-[#333333] text-sm shrink-0 relative transition-colors duration-200">
+        <div class="flex items-center gap-2 mr-1 cursor-default select-none">
             <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-white font-mono font-bold text-xs shadow">
                 <img src="appicon.png" class="w-6 h-6 object-contain">
             </div>
-            <span class="font-bold text-xs tracking-wide text-gray-200 hidden sm:inline">NgAppID</span>
+            <span class="font-bold text-xs tracking-wide text-gray-700 dark:text-gray-200 hidden sm:inline">NgAppID</span>
         </div>
-        <div class="w-px h-5 bg-[#444] mx-1"></div>
-        <button id="btn-open-folder" class="hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-blue-400">Open Folder</button>
-        <div class="w-px h-5 bg-[#444] mx-2"></div>
+        <div class="w-px h-5 bg-gray-300 dark:bg-[#444] mx-1"></div>
+        <button id="btn-open-folder" class="hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-blue-600 dark:text-blue-400">Open Folder</button>
+        <div class="w-px h-5 bg-gray-300 dark:bg-[#444] mx-2"></div>
         
-        <button id="btn-open" class="hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition">Open File</button>
-        <button id="btn-save" class="hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition">Save</button>
+        <button id="btn-open" class="text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition">Open File</button>
+        <button id="btn-save" class="text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition">Save</button>
 
-        <div class="w-px h-5 bg-[#444] mx-2"></div>
+        <div class="w-px h-5 bg-gray-300 dark:bg-[#444] mx-2"></div>
 
         <!-- Git Menu Dropdown -->
         <div class="relative">
-            <button id="btn-git-menu" class="hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-purple-400 font-semibold text-xs flex items-center gap-1">
+            <button id="btn-git-menu" class="hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-purple-600 dark:text-purple-400 font-semibold text-xs flex items-center gap-1">
                 <span>🔀 Git ▾</span>
             </button>
-            <div id="git-dropdown" class="absolute left-0 mt-1 w-40 bg-[#252526] border border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
-                <button id="btn-git-setup" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-blue-300 transition">🔧 Git Setup</button>
-                <button id="btn-git-init" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-yellow-300 transition">⚙ Git Init</button>
-                <button id="btn-git-push" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-green-300 transition">⬆ Git Push</button>
-                <button id="btn-git-pull" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-purple-300 transition">⬇ Git Pull</button>
-                <button id="btn-git-reset" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-red-400 transition font-bold">⟲ Git Reset</button>
-                <div class="h-px bg-[#444] my-1 mx-2"></div>
-                <button id="btn-git-ungit" class="text-left px-3 py-1.5 hover:bg-[#37373d] text-xs text-red-500 transition font-bold">🗑 Remove Git (.git)</button>
+            <div id="git-dropdown" class="absolute left-0 mt-1 w-40 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                <button id="btn-git-setup" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-blue-600 dark:text-blue-300 transition">🔧 Git Setup</button>
+                <button id="btn-git-init" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-yellow-600 dark:text-yellow-300 transition">⚙ Git Init</button>
+                <button id="btn-git-push" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-green-600 dark:text-green-300 transition">⬆ Git Push</button>
+                <button id="btn-git-pull" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-purple-600 dark:text-purple-300 transition">⬇ Git Pull</button>
+                <button id="btn-git-reset" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-red-500 dark:text-red-400 transition font-bold">⟲ Git Reset</button>
+                <div class="h-px bg-gray-300 dark:bg-[#444] my-1 mx-2"></div>
+                <button id="btn-git-ungit" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-red-600 dark:text-red-500 transition font-bold">🗑 Remove Git (.git)</button>
+            </div>
+        </div>
+        <div class="w-px h-5 bg-gray-300 dark:bg-[#444] mx-2"></div>
+		
+        <!-- FTP Menu Dropdown -->
+        <div class="relative">
+            <button id="btn-ftp-menu" class="hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-gray-700 dark:text-gray-300 font-semibold text-xs flex items-center gap-1">
+                <span>🌐 FTP ▾</span>
+            </button>
+            <div id="ftp-dropdown" class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                <button id="btn-ftp-connect" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition">🔌 Login & Koneksikan</button>
+                <button id="btn-ftp-open" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition">📂 Buka File Server</button>
+                <button id="btn-ftp-disconnect" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-red-500 hover:text-red-600 transition border-t border-gray-200 dark:border-[#444]">❌ Putuskan Koneksi</button>
+            </div>
+        </div>
+		
+        <!-- Settings Menu Dropdown -->
+        <div class="relative">
+            <button id="btn-settings-menu" class="hover:bg-gray-200 dark:hover:bg-[#333333] px-3 py-1 rounded cursor-pointer transition text-gray-700 dark:text-gray-300 font-semibold text-xs flex items-center gap-1">
+                <span>⚙ Settings ▾</span>
+            </button>
+            <div id="settings-dropdown" class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                <button id="btn-editor-settings" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition border-b border-gray-200 dark:border-[#444]">🎨 Tema & Font Editor</button>
+                
+                <!-- TAMBAHAN: Tombol Cepat Word Wrap -->
+                <button id="btn-toggle-wordwrap" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition flex justify-between items-center">
+                    <span>↩ Word Wrap</span>
+                    <span id="wordwrap-status" class="text-[10px] font-bold bg-gray-200 dark:bg-[#1e1e1e] px-1.5 py-0.5 rounded text-gray-500">OFF</span>
+                </button>
             </div>
         </div>
         
-        <span id="file-path" class="text-gray-400 text-xs italic ml-4 truncate flex-1">Tidak ada file terbuka</span>
-        <span id="app-version-display" class="ml-auto text-gray-500 text-xs font-semibold tracking-wider">NgAppID Code Editor</span>
+        <span id="file-path" class="text-gray-500 dark:text-gray-400 text-xs italic ml-4 truncate flex-1">Tidak ada file terbuka</span>
+        <span id="app-version-display" class="ml-auto text-gray-400 dark:text-gray-500 text-xs font-semibold tracking-wider">NgAppID Code Editor</span>
     </div>
 
     <!-- Main Layout -->
     <div class="flex flex-1 overflow-hidden">
         
         <!-- Sidebar Explorer -->
-        <div id="sidebar" class="w-64 bg-[#252526] flex flex-col hidden shrink-0 flex-none relative">
-            <div class="px-4 py-2 text-xs font-bold text-gray-400 border-b border-[#333333] flex justify-between items-center group shrink-0">
+        <div id="sidebar" class="w-64 bg-gray-50 dark:bg-[#252526] flex flex-col hidden shrink-0 flex-none relative transition-colors duration-200 border-r border-gray-300 dark:border-[#333]">
+            <div class="px-4 py-2 text-xs font-bold text-gray-500 dark:text-gray-400 border-b border-gray-300 dark:border-[#333333] flex justify-between items-center group">
                 <span id="folder-name" class="truncate uppercase tracking-wider">EXPLORER</span>
-                <div class="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#252526] pl-2">
-                    <button id="btn-new-file" title="New File" class="hover:text-blue-400 transition text-sm">📄+</button>
-                    <button id="btn-new-folder" title="New Folder" class="hover:text-blue-400 transition text-sm">📁+</button>
-                    <button id="btn-refresh" title="Refresh" class="hover:text-blue-400 transition text-sm">🔄</button>
+                <div class="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-50 dark:bg-[#252526] pl-2">
+                    <button id="btn-new-file" title="New File" class="hover:text-blue-500 dark:hover:text-blue-400 transition text-sm">📄+</button>
+                    <button id="btn-new-folder" title="New Folder" class="hover:text-blue-500 dark:hover:text-blue-400 transition text-sm">📁+</button>
+                    <button id="btn-refresh" title="Refresh" class="hover:text-blue-500 dark:hover:text-blue-400 transition text-sm">🔄</button>
                     <button id="btn-close-project" title="Close Project" class="hover:text-red-500 transition text-sm ml-1 font-bold">✖</button>
                 </div>
             </div>
-            
-            <!-- TAMBAHAN: Search Box -->
-            <div class="p-2 border-b border-[#333333] shrink-0">
-                <div class="flex items-center bg-[#1e1e1e] border border-[#444] rounded px-2 py-1 focus-within:border-blue-500 transition-colors">
-                    <span class="text-gray-500 text-xs mr-2">🔍</span>
-                    <input type="text" id="global-search-input" class="bg-transparent text-xs text-white w-full focus:outline-none placeholder-gray-600" placeholder="Cari teks di project (Enter)">
+
+            <!-- Global Search Box -->
+            <div class="p-2 border-b border-gray-300 dark:border-[#333333] shrink-0">
+                <div class="flex items-center bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] rounded px-2 py-1 focus-within:border-blue-500 transition-colors">
+                    <span class="text-gray-400 dark:text-gray-500 text-xs mr-2">🔍</span>
+                    <input type="text" id="global-search-input" class="bg-transparent text-xs text-gray-800 dark:text-white w-full focus:outline-none placeholder-gray-400 dark:placeholder-gray-600" placeholder="Cari teks di project...">
                 </div>
             </div>
 
-            <!-- TAMBAHAN: Container Hasil Pencarian (Awalnya disembunyikan) -->
             <div id="search-results" class="overflow-y-auto flex-1 text-sm hidden flex-col"></div>
-
-            <!-- FILE LIST EXISTING -->
-            <div id="file-list" class="overflow-y-auto flex-1 py-2 text-sm"></div>
+            <div id="file-list" class="overflow-y-auto flex-1 py-2 text-sm text-gray-700 dark:text-gray-300"></div>
         </div>
 
-        <!-- Sidebar Resizer -->
         <div id="resizer" class="resizer hidden"></div>
 
         <!-- Editor & Terminal Area -->
-        <div class="flex-1 flex flex-col min-w-0 bg-[#1e1e1e] overflow-hidden">
+        <div class="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1e1e1e] overflow-hidden transition-colors duration-200">
             
             <!-- Tab Bar -->
-            <div id="tab-bar" class="flex bg-[#252526] overflow-x-auto text-sm border-b border-[#333] shrink-0 h-9 hidden"></div>
+            <div id="tab-bar" class="flex bg-gray-100 dark:bg-[#252526] overflow-x-auto text-sm border-b border-gray-300 dark:border-[#333] shrink-0 h-9 hidden transition-colors duration-200"></div>
             
-            <div id="editor" class="flex-1 w-full relative border-b border-[#333333] overflow-hidden">
+            <div id="editor" class="flex-1 w-full relative border-b border-gray-300 dark:border-[#333333] overflow-hidden">
                 <!-- Welcome Screen Dashboard -->
-                <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-[#1e1e1e] text-gray-300 z-50 overflow-y-auto p-4">
-                    <div class="max-w-lg w-full p-8 bg-[#252526] border border-[#333333] rounded-xl shadow-2xl flex flex-col">
+                <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-gray-600 dark:text-gray-300 z-50 overflow-y-auto p-4 transition-colors duration-200">
+                    <div class="max-w-lg w-full p-8 bg-gray-50 dark:bg-[#252526] border border-gray-200 dark:border-[#333333] rounded-xl shadow-2xl flex flex-col">
                         
                         <!-- Header Title -->
-                        <div class="flex items-center space-x-3 mb-6 border-b border-[#333] pb-4">
-                            <div class="w-12 h-12 bg-blue-600/20 border border-blue-500/40 rounded-lg flex items-center justify-center text-blue-400 text-2xl font-bold"><img src="appicon.png" class="w-6 h-6 object-contain"></div>
+                        <div class="flex items-center space-x-3 mb-6 border-b border-gray-200 dark:border-[#333] pb-4">
+                            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold"><img src="appicon.png" class="w-6 h-6 object-contain"></div>
                             <div>
-                                <h1 class="text-xl font-bold text-white tracking-wide">NgAppID Code Editor</h1>
-                                <p class="text-xs text-gray-400">Lingkungan pengembangan modern, ringan, dan cepat.</p>
+                                <h1 class="text-xl font-bold text-gray-800 dark:text-white tracking-wide">NgAppID Code Editor</h1>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Lingkungan pengembangan modern, ringan, dan cepat.</p>
                             </div>
                         </div>
                         
                         <!-- Quick Actions Menu -->
                         <div class="mb-6">
-                            <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Mulai Cepat</p>
+                            <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Mulai Cepat</p>
                             <div class="grid grid-cols-2 gap-2">
-                                <button id="w-btn-open-folder" class="flex items-center gap-3 p-3 bg-[#2d2d2d] hover:bg-[#37373d] border border-[#444]/40 rounded-lg text-sm text-blue-400 transition cursor-pointer group text-left">
+                                <button id="w-btn-open-folder" class="flex items-center gap-3 p-3 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-sm transition cursor-pointer group text-left shadow-sm">
                                     <span class="text-xl">📁</span>
                                     <div>
-                                        <div class="font-semibold text-gray-200 group-hover:text-blue-300">Open Folder</div>
-                                        <div class="text-[11px] text-gray-400">Buka direktori project</div>
+                                        <div class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 dark:group-hover:text-blue-300">Open Folder</div>
+                                        <div class="text-[11px] text-gray-500 dark:text-gray-400">Buka direktori project</div>
                                     </div>
                                 </button>
-                                <button id="w-btn-open-file" class="flex items-center gap-3 p-3 bg-[#2d2d2d] hover:bg-[#37373d] border border-[#444]/40 rounded-lg text-sm text-gray-300 transition cursor-pointer group text-left">
+                                <button id="w-btn-open-file" class="flex items-center gap-3 p-3 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-sm transition cursor-pointer group text-left shadow-sm">
                                     <span class="text-xl">📄</span>
                                     <div>
-                                        <div class="font-semibold text-gray-200 group-hover:text-gray-100">Open File</div>
-                                        <div class="text-[11px] text-gray-400">Sunting file tunggal</div>
+                                        <div class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-gray-100">Open File</div>
+                                        <div class="text-[11px] text-gray-500 dark:text-gray-400">Sunting file tunggal</div>
                                     </div>
                                 </button>
                             </div>
@@ -133,13 +182,10 @@
                         <!-- Recent History Section -->
                         <div>
                             <div class="flex justify-between items-center mb-3">
-                                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Recent Projects</p>
-                                <button id="w-btn-clear-history" class="text-[11px] text-gray-500 hover:text-red-400 transition">Hapus Riwayat</button>
+                                <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Recent Projects</p>
+                                <button id="w-btn-clear-history" class="text-[11px] text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition">Hapus Riwayat</button>
                             </div>
-                            <div id="recent-history-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                <!-- List riwayat akan di-inject otomatis lewat JS -->
-                                <p class="text-xs text-gray-500 italic py-2 text-center">Belum ada riwayat project tersimpan.</p>
-                            </div>
+                            <div id="recent-history-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></div>
                         </div>
 
                     </div>
@@ -147,15 +193,15 @@
             </div>
 
             <!-- Terminal Panel -->
-            <div id="terminal-panel" class="h-48 bg-[#1e1e1e] flex flex-col hidden shrink-0">
-                <div class="bg-[#252526] px-3 py-1 border-b border-[#333] flex justify-between items-center">
-                    <span class="text-xs text-gray-400 font-bold uppercase tracking-wider">TERMINAL</span>
-                    <button id="btn-close-terminal" class="text-gray-500 hover:text-white font-bold px-1">×</button>
+            <div id="terminal-panel" class="h-48 bg-white dark:bg-[#1e1e1e] flex flex-col hidden shrink-0 transition-colors duration-200">
+                <div class="bg-gray-100 dark:bg-[#252526] px-3 py-1 border-b border-gray-300 dark:border-[#333] flex justify-between items-center transition-colors duration-200">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">TERMINAL</span>
+                    <button id="btn-close-terminal" class="text-gray-500 hover:text-black dark:hover:text-white font-bold px-1">×</button>
                 </div>
-                <div id="terminal-output" class="flex-1 overflow-y-auto p-2 text-xs font-mono text-gray-300 whitespace-pre-wrap select-text"></div>
-                <div class="flex items-center border-t border-[#333] bg-[#252526]">
-                    <span class="px-2 py-1 text-green-400 text-xs font-mono select-none">❯</span>
-                    <input type="text" id="terminal-input" class="flex-1 bg-transparent text-xs font-mono text-white px-2 py-1.5 focus:outline-none" placeholder="Ketik perintah di sini (misal: help, npm i, go run main.go)...">
+                <div id="terminal-output" class="flex-1 overflow-y-auto p-2 text-xs font-mono text-gray-800 dark:text-gray-300 whitespace-pre-wrap select-text"></div>
+                <div class="flex items-center border-t border-gray-300 dark:border-[#333] bg-gray-50 dark:bg-[#252526] transition-colors duration-200">
+                    <span class="px-2 py-1 text-green-600 dark:text-green-400 text-xs font-mono select-none">❯</span>
+                    <input type="text" id="terminal-input" class="flex-1 bg-transparent text-xs font-mono text-gray-800 dark:text-white px-2 py-1.5 focus:outline-none" placeholder="Ketik perintah di sini (misal: help, npm i, go run main.go)...">
                 </div>
             </div>
         </div>
@@ -163,16 +209,74 @@
 
     <!-- Modal Git Commit -->
     <div id="commit-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 backdrop-blur-sm transition-opacity">
-        <div class="bg-[#252526] p-5 rounded-lg shadow-xl border border-[#333333] w-96 transform transition-all">
-            <h3 class="text-sm font-bold mb-3 text-gray-200">Git Commit & Push</h3>
-            <input type="text" id="commit-message" placeholder="Tulis pesan commit di sini..." class="w-full bg-[#1e1e1e] border border-[#444] text-white px-3 py-2 text-sm rounded focus:outline-none focus:border-blue-500 mb-4 transition-colors">
+        <div class="bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl border border-gray-300 dark:border-[#333333] w-96 transform transition-all">
+            <h3 class="text-sm font-bold mb-3 text-gray-800 dark:text-gray-200">Git Commit & Push</h3>
+            <input type="text" id="commit-message" placeholder="Tulis pesan commit..." class="w-full bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-3 py-2 text-sm rounded focus:outline-none focus:border-blue-500 mb-4">
             <div class="flex justify-end space-x-2 text-sm font-medium">
-                <button id="btn-cancel-commit" class="px-4 py-1.5 text-gray-300 hover:bg-[#333] rounded transition">Batal</button>
+                <button id="btn-cancel-commit" class="px-4 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#333] rounded transition">Batal</button>
                 <button id="btn-submit-commit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition shadow">Push Kode</button>
             </div>
         </div>
     </div>
 
+    <!-- Modal Editor Settings -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl border border-gray-300 dark:border-[#333333] w-96 transform transition-all">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-[#333] pb-2">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-gray-200">⚙ Editor Settings</h3>
+                <button id="btn-close-settings-x" class="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">✖</button>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Tema Editor & UI</label>
+                <select id="setting-theme" class="w-full bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-3 py-2 text-sm rounded focus:outline-none focus:border-blue-500 cursor-pointer">
+                    <option value="vs-dark">Dark (Gelap Default)</option>
+                    <option value="vs">Light (Terang)</option>
+                    <option value="hc-black">High Contrast (Sangat Gelap)</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Ukuran Font (px)</label>
+                <input type="number" id="setting-font-size" value="14" min="8" max="30" class="w-full bg-gray-50 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-3 py-2 text-sm rounded focus:outline-none focus:border-blue-500">
+            </div>
+
+            <div class="flex justify-end space-x-2 text-sm font-medium">
+                <button id="btn-cancel-settings" class="px-4 py-1.5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#333] rounded transition">Batal</button>
+                <button id="btn-save-settings" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition shadow">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+<!-- FTP Login Modal -->
+    <div id="ftp-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+        <div class="bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl w-80 border border-gray-300 dark:border-[#444]">
+            <h3 class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">🔌 Setup Koneksi FTP</h3>
+            <div class="mb-3">
+                <label class="block text-xs text-gray-500 mb-1">Host / IP Server</label>
+                <input type="text" id="ftp-host" class="w-full bg-gray-100 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-2 py-1 text-sm rounded focus:outline-none" placeholder="ftp.namadomain.com">
+            </div>
+            <div class="mb-3 flex gap-2">
+                <div class="w-2/3">
+                    <label class="block text-xs text-gray-500 mb-1">Username</label>
+                    <input type="text" id="ftp-user" class="w-full bg-gray-100 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-2 py-1 text-sm rounded focus:outline-none">
+                </div>
+                <div class="w-1/3">
+                    <label class="block text-xs text-gray-500 mb-1">Port</label>
+                    <input type="text" id="ftp-port" value="21" class="w-full bg-gray-100 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-2 py-1 text-sm rounded focus:outline-none">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs text-gray-500 mb-1">Password</label>
+                <input type="password" id="ftp-pass" class="w-full bg-gray-100 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-2 py-1 text-sm rounded focus:outline-none">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="btn-cancel-ftp" class="px-3 py-1 bg-gray-300 dark:bg-[#333] hover:bg-gray-400 dark:hover:bg-[#444] text-gray-800 dark:text-gray-200 text-xs rounded transition">Batal</button>
+                <button id="btn-login-ftp" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition">Koneksikan</button>
+            </div>
+        </div>
+    </div>
+	
     <script src="./src/main.js" type="module"></script>
 </body>
 </html>

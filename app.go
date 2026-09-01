@@ -3,17 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"         // <-- Tambahan untuk FTP
+	"bytes"      // <-- Tambahan untuk FTP
+	"time"       // <-- Tambahan untuk FTP
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-
+	
+	"github.com/jlaffaye/ftp" // <-- Library FTP
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type App struct {
 	ctx context.Context
+	ftpConn *ftp.ServerConn // <-- Tambahan: Untuk menyimpan koneksi FTP
 }
 
 type FileInfo struct {
@@ -312,4 +317,79 @@ func (a *App) SearchInFiles(folderPath string, keyword string) ([]SearchResult, 
 	})
 
 	return results, err
+}
+
+// ==========================================
+// FITUR FTP TERINTEGRASI
+// ==========================================
+
+// 1. Konek ke FTP Hosting
+func (a *App) FTPConnect(host, port, user, pass string) (string, error) {
+	// Jika ada koneksi lama, tutup dulu
+	if a.ftpConn != nil {
+		a.ftpConn.Quit()
+	}
+
+	// Dial ke server dengan timeout 10 detik
+	c, err := ftp.Dial(host+":"+port, ftp.DialWithTimeout(10*time.Second))
+	if err != nil {
+		return "", fmt.Errorf("gagal menghubungi server: %v", err)
+	}
+
+	// Login pakai username & password
+	err = c.Login(user, pass)
+	if err != nil {
+		return "", fmt.Errorf("login FTP gagal (cek user/pass): %v", err)
+	}
+
+	a.ftpConn = c // Simpan sesi
+	return "Berhasil terhubung ke FTP: " + host, nil
+}
+
+// 2. Baca/Buka File dari FTP
+func (a *App) FTPReadFile(remotePath string) (string, error) {
+	if a.ftpConn == nil {
+		return "", fmt.Errorf("FTP belum terhubung. Silakan login dulu.")
+	}
+
+	r, err := a.ftpConn.Retr(remotePath)
+	if err != nil {
+		return "", fmt.Errorf("gagal membuka file dari FTP: %v", err)
+	}
+	defer r.Close()
+
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		return "", fmt.Errorf("gagal membaca isi file: %v", err)
+	}
+
+	return string(buf), nil
+}
+
+// 3. Save/Upload File ke FTP
+func (a *App) FTPSaveFile(remotePath, content string) (string, error) {
+	if a.ftpConn == nil {
+		return "", fmt.Errorf("FTP terputus. Silakan login ulang.")
+	}
+
+	// Ubah string text menjadi format io.Reader
+	data := bytes.NewBufferString(content)
+
+	// Timpa/Upload file ke server (Stor)
+	err := a.ftpConn.Stor(remotePath, data)
+	if err != nil {
+		return "", fmt.Errorf("gagal upload/save ke FTP: %v", err)
+	}
+
+	return "File berhasil di-upload ke server!", nil
+}
+
+// 4. Putuskan Koneksi FTP
+func (a *App) FTPDisconnect() string {
+	if a.ftpConn != nil {
+		a.ftpConn.Quit()
+		a.ftpConn = nil
+		return "Koneksi FTP diputus."
+	}
+	return "Tidak ada koneksi FTP yang aktif."
 }

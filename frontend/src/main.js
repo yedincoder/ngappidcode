@@ -3,12 +3,15 @@ import {
     GitPull, GitCommitAndPush, GetFolderContents,
     CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
     SetGitConfig, AddGitRemote, GitReset, GetAppVersion,
-    SearchInFiles // <- Tambahan import Search
+    SearchInFiles,
+    FTPConnect, FTPReadFile, FTPSaveFile, FTPDisconnect
 } from '../wailsjs/go/main/App';
 
+// --- APP VERSION & INITIAL CONFIG ---
 GetAppVersion().then(version => {
     window.APP_VERSION = version;
-    document.getElementById('app-version-display').innerText = `NgAppID Code Editor ${version}`;
+    const versionDisplay = document.getElementById('app-version-display');
+    if (versionDisplay) versionDisplay.innerText = `NgAppID Code Editor ${version}`;
 });
 
 let editorInstance;
@@ -54,51 +57,58 @@ function logToTerminal(command, output, isError = false) {
     
     panel.classList.remove('hidden'); 
     
-    termOutput.innerHTML += `\n<span class="text-blue-400">❯ ${command}</span>\n`;
+    termOutput.innerHTML += `\n<span class="text-blue-600 dark:text-blue-400">❯ ${command}</span>\n`;
     
     if (isError) {
-        termOutput.innerHTML += `<span class="text-red-500 font-bold">❌ STATUS: GAGAL / ERROR</span>\n`;
-        termOutput.innerHTML += `<span class="text-red-400">${output}</span>\n`;
+        termOutput.innerHTML += `<span class="text-red-600 dark:text-red-500 font-bold">❌ STATUS: GAGAL / ERROR</span>\n`;
+        termOutput.innerHTML += `<span class="text-red-500 dark:text-red-400">${output}</span>\n`;
     } else {
-        termOutput.innerHTML += `<span class="text-green-400 font-bold">✔ STATUS: BERHASIL / SUKSES</span>\n`;
+        termOutput.innerHTML += `<span class="text-green-600 dark:text-green-400 font-bold">✔ STATUS: BERHASIL / SUKSES</span>\n`;
         if (output) {
-            termOutput.innerHTML += `<span class="text-gray-300">${output}</span>\n`;
+            termOutput.innerHTML += `<span class="text-gray-800 dark:text-gray-300">${output}</span>\n`;
         }
     }
     termOutput.scrollTop = termOutput.scrollHeight;
 }
 
+// --- MONACO EDITOR INITIALIZATION ---
 require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' }});
 require(['vs/editor/editor.main'], function() {
+    const savedConfig = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark', fontSize: 14 };
+
     editorInstance = monaco.editor.create(document.getElementById('editor'), {
-        theme: 'vs-dark',
+        theme: savedConfig.theme,
         automaticLayout: true,
-        fontSize: 14
+        fontSize: savedConfig.fontSize
     });
 
     editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async function() {
         saveActiveFile();
     });
-	renderTabs();
+    renderTabs();
     if (currentFolderPath) loadFolderData(currentFolderPath);
 });
 
+// --- SIDEBAR RESIZER ---
 const sidebar = document.getElementById('sidebar');
 const resizer = document.getElementById('resizer');
 let isResizing = false;
 
-resizer.addEventListener('mousedown', () => isResizing = true);
-window.addEventListener('mousemove', (e) => {
-    if (!isResizing) return;
-    document.body.style.cursor = 'col-resize';
-    const newWidth = Math.max(150, Math.min(e.clientX, 600));
-    sidebar.style.width = `${newWidth}px`;
-});
-window.addEventListener('mouseup', () => {
-    isResizing = false;
-    document.body.style.cursor = 'default';
-});
+if (resizer) {
+    resizer.addEventListener('mousedown', () => isResizing = true);
+    window.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        document.body.style.cursor = 'col-resize';
+        const newWidth = Math.max(150, Math.min(e.clientX, 600));
+        sidebar.style.width = `${newWidth}px`;
+    });
+    window.addEventListener('mouseup', () => {
+        isResizing = false;
+        document.body.style.cursor = 'default';
+    });
+}
 
+// --- TAB MANAGEMENT & SAVE ---
 const tabBar = document.getElementById('tab-bar');
 const welcomeScreen = document.getElementById('welcome-screen');
 
@@ -108,9 +118,8 @@ function renderTabs() {
         tabBar.classList.add('hidden');
         if (welcomeScreen) {
             welcomeScreen.classList.remove('hidden');
-            // FIX: Paksa Welcome Screen tampil di atas layer Monaco Editor
             welcomeScreen.style.zIndex = '50';
-            welcomeScreen.style.backgroundColor = '#1e1e1e';
+            welcomeScreen.style.backgroundColor = '';
         }
         if (editorInstance) editorInstance.setModel(null);
         document.getElementById('file-path').innerText = 'Tidak ada file terbuka';
@@ -123,16 +132,16 @@ function renderTabs() {
     tabs.forEach(tab => {
         const isActive = tab.path === activeFilePath;
         const tabEl = document.createElement('div');
-        tabEl.className = `flex items-center gap-2 px-3 py-1.5 cursor-pointer border-r border-[#333] group shrink-0 select-none ${isActive ? 'bg-[#1e1e1e] text-blue-400 border-t-2 border-t-blue-500' : 'bg-[#2d2d2d] text-gray-400 hover:bg-[#252526]'}`;
+        tabEl.className = `flex items-center gap-2 px-3 py-1.5 cursor-pointer border-r border-gray-300 dark:border-[#333] group shrink-0 select-none ${isActive ? 'bg-white dark:bg-[#1e1e1e] text-blue-600 dark:text-blue-400 border-t-2 border-t-blue-500' : 'bg-gray-100 dark:bg-[#2d2d2d] text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-[#252526]'}`;
         tabEl.onclick = () => switchTab(tab.path);
         
         const nameSpan = document.createElement('span');
         nameSpan.innerText = tab.name + (tab.isDirty ? ' •' : '');
-        nameSpan.className = `text-xs truncate max-w-[120px] ${tab.isDirty ? 'italic font-bold text-gray-200' : ''}`; 
+        nameSpan.className = `text-xs truncate max-w-[120px] ${tab.isDirty ? 'italic font-bold text-gray-800 dark:text-gray-200' : ''}`; 
         
         const closeBtn = document.createElement('span');
         closeBtn.innerText = '×';
-        closeBtn.className = `text-base px-1 rounded hover:bg-[#444] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`;
+        closeBtn.className = `text-base px-1 rounded hover:bg-gray-300 dark:hover:bg-[#444] ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`;
         closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(tab.path); };
 
         tabEl.appendChild(nameSpan);
@@ -151,14 +160,16 @@ function switchTab(filePath) {
     }
 }
 
-function openTab(filePath, content) {
+function openTab(filePath, content, isFTP = false) {
     if (typeof monaco === 'undefined' || !editorInstance) return;
     let tab = tabs.find(t => t.path === filePath);
     if (!tab) {
         const fileName = filePath.split(/[/\\]/).pop();
         const lang = detectLanguage(filePath);
         const model = monaco.editor.createModel(content, lang);
-        tab = { path: filePath, name: fileName, model: model, isDirty: false };
+        
+        // Simpan status isFTP di tab
+        tab = { path: filePath, name: fileName, model: model, isDirty: false, isFTP: isFTP };
         tabs.push(tab);
 
         model.onDidChangeContent(() => {
@@ -167,6 +178,39 @@ function openTab(filePath, content) {
     }
     switchTab(filePath);
 }
+
+async function saveActiveFile() {
+    if (!activeFilePath || !editorInstance) return;
+    try {
+        const tab = tabs.find(t => t.path === activeFilePath);
+        
+        if (tab && tab.isFTP) {
+            // JIKA INI FILE FTP: Lakukan Upload ke Server
+            const remotePath = activeFilePath.replace('FTP://', ''); // Buang label FTP
+            logToTerminal("FTP", `⏳ Menyimpan dan upload ${remotePath} ke server...`);
+            const output = await FTPSaveFile(remotePath, editorInstance.getValue());
+            logToTerminal("FTP Save", `✔ ${output}`);
+        } else {
+            // JIKA INI FILE LOKAL BIASA
+            await SaveFile(activeFilePath, editorInstance.getValue());
+        }
+
+        if (tab) { tab.isDirty = false; renderTabs(); }
+        const saveBtn = document.getElementById('btn-save');
+        saveBtn.classList.add('bg-green-600', 'text-white');
+        setTimeout(() => saveBtn.classList.remove('bg-green-600', 'text-white'), 300);
+        refreshSidebar(); 
+    } catch (err) { logToTerminal("System", "Gagal menyimpan file: " + String(err), true); }
+}
+// --- FUNGSI SORTING FILE & FOLDER ---
+const sortFilesSafely = (a, b) => {
+    const isDirA = (a.is_dir === true || a.IsDir === true || a.isDir === true) ? 1 : 0;
+    const isDirB = (b.is_dir === true || b.IsDir === true || b.isDir === true) ? 1 : 0;
+    if (isDirA !== isDirB) return isDirB - isDirA; // Folder selalu di atas
+    const nameA = a.name || a.Name || "";
+    const nameB = b.name || b.Name || "";
+    return nameA.localeCompare(nameB); // Sisanya urut abjad
+};
 
 function closeTab(filePath) {
     const index = tabs.findIndex(t => t.path === filePath);
@@ -180,27 +224,8 @@ function closeTab(filePath) {
     }
 }
 
-async function saveActiveFile() {
-    if (!activeFilePath || !editorInstance) return;
-    try {
-        await SaveFile(activeFilePath, editorInstance.getValue());
-        const tab = tabs.find(t => t.path === activeFilePath);
-        if (tab) { tab.isDirty = false; renderTabs(); }
-        document.getElementById('btn-save').classList.add('bg-green-600', 'text-white');
-        setTimeout(() => document.getElementById('btn-save').classList.remove('bg-green-600', 'text-white'), 300);
-        refreshSidebar(); 
-    } catch (err) { logToTerminal("System", "Gagal menyimpan file: " + String(err), true); }
-}
 
-const sortFilesSafely = (a, b) => {
-    const isDirA = (a.is_dir === true || a.IsDir === true || a.isDir === true) ? 1 : 0;
-    const isDirB = (b.is_dir === true || b.IsDir === true || b.isDir === true) ? 1 : 0;
-    if (isDirA !== isDirB) return isDirB - isDirA;
-    const nameA = a.name || a.Name || "";
-    const nameB = b.name || b.Name || "";
-    return nameA.localeCompare(nameB);
-};
-
+// --- FILE EXPLORER & SIDEBAR RENDER ---
 function createSidebarItem(item, level = 0) {
     const isDir = item.is_dir === true || item.IsDir === true || item.isDir === true;
     const itemName = item.name || item.Name || "Unknown";
@@ -210,54 +235,64 @@ function createSidebarItem(item, level = 0) {
     const wrapper = document.createElement('div');
     wrapper.className = "flex flex-col w-full";
     
-    let colorClass = 'text-gray-300';
-    if (gitState === 'M') colorClass = 'text-yellow-400';
-    else if (gitState === 'U') colorClass = 'text-green-400';
+    let colorClass = 'text-gray-700 dark:text-gray-300';
+    if (gitState === 'M') colorClass = 'text-yellow-600 dark:text-yellow-400';
+    else if (gitState === 'U') colorClass = 'text-green-600 dark:text-green-400';
 
     const div = document.createElement('div');
-    div.className = `py-1 cursor-pointer hover:bg-[#37373d] flex items-center justify-between gap-2 text-sm select-none px-2 group ${colorClass}`;
+    div.className = `py-1 cursor-pointer hover:bg-gray-200 dark:hover:bg-[#37373d] flex items-center justify-between gap-2 text-sm select-none px-2 group ${colorClass}`;
     
+    // Tampilkan tombol New File/Folder ekstra KHUSUS untuk folder
+    let actionButtons = '';
+    if (isDir) {
+        actionButtons = `
+            <button class="btn-new-file text-gray-400 hover:text-black dark:hover:text-white px-0.5" title="New File in Folder">📄<span class="text-[10px]">+</span></button>
+            <button class="btn-new-folder text-gray-400 hover:text-black dark:hover:text-white px-0.5" title="New Folder in Folder">📁<span class="text-[10px]">+</span></button>
+            <button class="btn-rename text-blue-600 dark:text-blue-400 hover:text-black dark:hover:text-white px-1">✎</button>
+            <button class="btn-del text-red-500 dark:text-red-400 hover:text-black dark:hover:text-white px-1">🗑</button>
+        `;
+    } else {
+        actionButtons = `
+            <button class="btn-rename text-blue-600 dark:text-blue-400 hover:text-black dark:hover:text-white px-1">✎</button>
+            <button class="btn-del text-red-500 dark:text-red-400 hover:text-black dark:hover:text-white px-1">🗑</button>
+        `;
+    }
+
     div.innerHTML = `
         <div class="flex items-center gap-2 truncate flex-1 min-w-0">
             <span class="w-4 flex justify-center items-center shrink-0">${getFileIcon(itemName, isDir)}</span> 
             <span class="name-display truncate flex-1">${itemName}</span>
         </div>
         <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button class="btn-rename text-blue-400 hover:text-white px-1">✎</button>
-            <button class="btn-del text-red-400 hover:text-white px-1">🗑</button>
+            ${actionButtons}
         </div>
     `;
     wrapper.appendChild(div);
 
     const nameDisplay = div.querySelector('.name-display');
 
+    // LOGIKA RENAME
     div.querySelector('.btn-rename').addEventListener('click', (e) => {
         e.stopPropagation();
-        
         if (div.querySelector('.rename-input')) return; 
 
         const input = document.createElement('input');
         input.type = 'text';
         input.value = itemName;
-        input.className = 'rename-input bg-[#1e1e1e] text-white px-1 border border-blue-500 rounded text-xs w-full outline-none focus:ring-1 focus:ring-blue-500';
+        input.className = 'rename-input bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-white px-1 border border-blue-500 rounded text-xs w-full outline-none focus:ring-1 focus:ring-blue-500';
 
         nameDisplay.style.display = 'none';
         nameDisplay.parentNode.insertBefore(input, nameDisplay.nextSibling);
 
         input.focus();
         const dotIndex = itemName.lastIndexOf('.');
-        if (!isDir && dotIndex > 0) {
-            input.setSelectionRange(0, dotIndex); 
-        } else {
-            input.select(); 
-        }
+        if (!isDir && dotIndex > 0) input.setSelectionRange(0, dotIndex); 
+        else input.select(); 
 
         let isProcessing = false;
-
         const finishRename = async (save) => {
             if (isProcessing) return;
             isProcessing = true;
-
             const newName = input.value.trim();
             input.remove();
             nameDisplay.style.display = '';
@@ -266,7 +301,6 @@ function createSidebarItem(item, level = 0) {
                 try {
                     const newPath = itemPath.substring(0, itemPath.lastIndexOf(itemName)) + newName;
                     await RenameItem(itemPath, newPath);
-                    
                     if (activeFilePath === itemPath) {
                         activeFilePath = newPath;
                         const tab = tabs.find(t => t.path === itemPath);
@@ -278,9 +312,7 @@ function createSidebarItem(item, level = 0) {
                         }
                     }
                     refreshSidebar(); 
-                } catch (err) { 
-                    logToTerminal("System", "Gagal mengganti nama: " + String(err), true); 
-                }
+                } catch (err) { logToTerminal("System", "Gagal mengganti nama: " + String(err), true); }
             }
         };
 
@@ -293,9 +325,10 @@ function createSidebarItem(item, level = 0) {
         input.addEventListener('click', (e) => e.stopPropagation());
     });
 
+    // LOGIKA DELETE
     div.querySelector('.btn-del').addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm(`Yakin ingin menghapus ${itemName} secara permanen?`)) {
+        if (await CustomConfirm(`Yakin ingin menghapus ${itemName} secara permanen?`)) {
             try { 
                 await DeleteItem(itemPath); refreshSidebar(); 
                 if (activeFilePath === itemPath) closeTab(itemPath);
@@ -303,9 +336,10 @@ function createSidebarItem(item, level = 0) {
         }
     });
 
+    // LOGIKA FOLDER & SUB-FILE CREATION
     if (isDir) {
         const subContainer = document.createElement('div');
-        subContainer.className = 'hidden flex-col border-l border-[#444]/40 pl-3 ml-3 my-0.5';
+        subContainer.className = 'hidden flex-col border-l border-gray-300 dark:border-[#444]/40 pl-3 ml-3 my-0.5';
         wrapper.appendChild(subContainer);
         let isLoaded = false;
         
@@ -328,23 +362,30 @@ function createSidebarItem(item, level = 0) {
         
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (e.target.tagName === 'INPUT') return; // FIX: Cegah folder buka/tutup saat input rename di klik
-
-            if (subContainer.classList.contains('hidden')) {
-                await openFolder();
-            } else { 
-                closeFolder(); 
-            }
+            if (e.target.tagName === 'INPUT') return;
+            if (subContainer.classList.contains('hidden')) await openFolder();
+            else closeFolder(); 
         });
 
-        if (expandedFolders.has(itemPath)) {
-            openFolder();
-        }
+        if (expandedFolders.has(itemPath)) openFolder();
+
+        // TAMBAHAN: Event Listener Create File/Folder di dalam sub-folder
+        div.querySelector('.btn-new-file').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (subContainer.classList.contains('hidden')) await openFolder();
+            showInlineInput(false, itemPath, subContainer);
+        });
+
+        div.querySelector('.btn-new-folder').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (subContainer.classList.contains('hidden')) await openFolder();
+            showInlineInput(true, itemPath, subContainer);
+        });
+
     } else {
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (e.target.tagName === 'INPUT') return; // FIX: Cegah file terbuka saat input rename di klik
-            
+            if (e.target.tagName === 'INPUT') return;
             if (activeFilePath === itemPath) return;
             try { openTab(itemPath, await ReadFileByPath(itemPath)); } 
             catch (err) { logToTerminal("System", "Gagal membuka file: " + String(err), true); }
@@ -376,9 +417,68 @@ async function refreshSidebar() {
     } catch (err) { logToTerminal("System", "Gagal refresh sidebar: " + String(err), true); }
 }
 
+// --- RECENT HISTORY MANAGER ---
+function getRecentProjects() {
+    try {
+        return JSON.parse(localStorage.getItem('ngappid_recent') || '[]');
+    } catch {
+        return [];
+    }
+}
+
+function addRecentProject(folderPath) {
+    if (!folderPath) return;
+    let list = getRecentProjects();
+    list = list.filter(p => p !== folderPath);
+    list.unshift(folderPath);
+    if (list.length > 10) list.pop();
+    localStorage.setItem('ngappid_recent', JSON.stringify(list));
+    renderRecentHistory();
+}
+
+function renderRecentHistory() {
+    const container = document.getElementById('recent-history-container');
+    if (!container) return;
+    
+    const list = getRecentProjects();
+    if (list.length === 0) {
+        container.innerHTML = `<p class="text-xs text-gray-500 italic py-2 text-center">Belum ada riwayat project tersimpan.</p>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    list.forEach(path => {
+        const folderName = path.split(/[/\\]/).pop();
+        const itemEl = document.createElement('div');
+        itemEl.className = "flex items-center justify-between p-2.5 bg-gray-100 dark:bg-[#2d2d2d]/60 hover:bg-gray-200 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/30 rounded-lg text-xs cursor-pointer transition group";
+        itemEl.innerHTML = `
+            <div class="flex items-center gap-2.5 truncate flex-1 mr-2">
+                <span class="text-base">📂</span>
+                <div class="truncate">
+                    <div class="font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-300 truncate">${folderName}</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-500 truncate">${path}</div>
+                </div>
+            </div>
+            <span class="text-[10px] text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-300 bg-white dark:bg-[#1e1e1e] px-2 py-1 rounded border border-gray-300 dark:border-[#444]">Buka</span>
+        `;
+        itemEl.onclick = () => loadFolderData(path);
+        container.appendChild(itemEl);
+    });
+}
+
+const originalLoadFolderData = loadFolderData;
+window.loadFolderData = async function(basePath) {
+    addRecentProject(basePath);
+    return originalLoadFolderData(basePath);
+};
+
+// --- MAIN TOPBAR BUTTON LISTENERS ---
 document.getElementById('btn-open-folder').addEventListener('click', async () => {
     const result = await OpenFolderDialog();
-    if (result && result.base_path) loadFolderData(result.base_path);
+    if (result && result.base_path) {
+        addRecentProject(result.base_path);
+        loadFolderData(result.base_path);
+    }
 });
 document.getElementById('btn-open').addEventListener('click', async () => {
     const fileInfo = await OpenFile();
@@ -387,26 +487,79 @@ document.getElementById('btn-open').addEventListener('click', async () => {
 document.getElementById('btn-save').addEventListener('click', saveActiveFile);
 document.getElementById('btn-refresh').addEventListener('click', refreshSidebar);
 
-// FIX PATH SEPARATOR UNTUK NEW FILE/FOLDER:
-document.getElementById('btn-new-file').addEventListener('click', async (e) => {
+// --- INLINE FILE & FOLDER CREATION ---
+// Sekarang menerima targetFolderPath dan appendTarget agar bisa ditanam di sub-folder manapun
+function showInlineInput(isDirToCreate, targetFolderPath = currentFolderPath, appendTarget = document.getElementById('file-list')) {
+    if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu!", true);
+    
+    const existingInput = document.getElementById('inline-create-input');
+    if (existingInput) existingInput.closest('.inline-create-wrapper').remove();
+
+    const wrapper = document.createElement('div');
+    wrapper.className = "inline-create-wrapper flex flex-col w-full";
+
+    const div = document.createElement('div');
+    div.className = `py-1 flex items-center gap-2 text-sm px-2`;
+
+    const icon = isDirToCreate ? '📁' : '📄';
+
+    div.innerHTML = `
+        <span class="w-4 flex justify-center items-center shrink-0">${icon}</span>
+        <input type="text" id="inline-create-input" class="bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-white px-1 border border-blue-500 rounded text-xs w-full outline-none focus:ring-1 focus:ring-blue-500" placeholder="Nama ${isDirToCreate ? 'folder' : 'file'} baru...">
+    `;
+    wrapper.appendChild(div);
+
+    // Tanam inputannya di paling atas dari target container (bisa di root file-list, bisa di dalam sub-folder)
+    appendTarget.insertBefore(wrapper, appendTarget.firstChild);
+
+    const input = document.getElementById('inline-create-input');
+    input.focus();
+
+    let isProcessing = false;
+
+    const finishCreate = async (save) => {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        const name = input.value.trim();
+        wrapper.remove();
+
+        if (save && name) {
+            try {
+                const separator = targetFolderPath.includes('\\') ? '\\' : '/';
+                const fullPath = `${targetFolderPath}${separator}${name}`;
+                
+                if (isDirToCreate) {
+                    await CreateNewFolder(fullPath);
+                } else {
+                    await CreateNewFile(fullPath);
+                }
+                
+                refreshSidebar();
+            } catch (err) {
+                logToTerminal("System", `Gagal membuat ${isDirToCreate ? 'folder' : 'file'}: ` + String(err), true);
+            }
+        }
+    };
+
+    input.addEventListener('blur', () => finishCreate(true));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') finishCreate(true);
+        if (e.key === 'Escape') finishCreate(false);
+        e.stopPropagation();
+    });
+    input.addEventListener('click', (e) => e.stopPropagation());
+}
+
+// Tombol Root (Di header sidebar explorer atas)
+document.getElementById('btn-new-file').addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat file!", true);
-    const name = prompt("Nama file baru:");
-    if (name) { 
-        const separator = currentFolderPath.includes('\\') ? '\\' : '/';
-        await CreateNewFile(`${currentFolderPath}${separator}${name}`); 
-        refreshSidebar(); 
-    }
+    showInlineInput(false, currentFolderPath, document.getElementById('file-list'));
 });
-document.getElementById('btn-new-folder').addEventListener('click', async (e) => {
+
+document.getElementById('btn-new-folder').addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat folder!", true);
-    const name = prompt("Nama folder baru:");
-    if (name) { 
-        const separator = currentFolderPath.includes('\\') ? '\\' : '/';
-        await CreateNewFolder(`${currentFolderPath}${separator}${name}`); 
-        refreshSidebar(); 
-    }
+    showInlineInput(true, currentFolderPath, document.getElementById('file-list'));
 });
 
 window.addEventListener('keydown', (e) => {
@@ -414,6 +567,7 @@ window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') { e.preventDefault(); if (activeFilePath) closeTab(activeFilePath); }
 });
 
+// --- TERMINAL PANEL & INTERACTIVE COMMANDS ---
 const termOutput = document.getElementById('terminal-output');
 const termInput = document.getElementById('terminal-input');
 document.getElementById('btn-close-terminal').addEventListener('click', () => document.getElementById('terminal-panel').classList.add('hidden'));
@@ -421,7 +575,6 @@ document.getElementById('btn-close-terminal').addEventListener('click', () => do
 let terminalState = 'NORMAL'; 
 let setupData = { name: '', email: '', remote: '' };
 
-// FIX: Set status busy untuk input saat proses background berjalan
 termInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
         if (termInput.disabled) return; 
@@ -433,91 +586,78 @@ termInput.addEventListener('keydown', async (e) => {
             if (!cmd) return;
             termInput.value = '';
             
-            // --- CUSTOM COMMANDS (NgAppID Built-in) ---
             if (cmdLower === 'clear' || cmdLower === 'cls') {
                 termOutput.innerHTML = '';
                 return;
             }
             
-            termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
+            termOutput.innerHTML += `\n<span class="text-green-700 dark:text-green-400">❯ ${cmd}</span>\n`;
             
             if (cmdLower === 'help') {
-                termOutput.innerHTML += `<span class="text-blue-300 font-bold">Perintah bawaan NgAppID Code Editor:</span>\n`;
-                termOutput.innerHTML += `<span class="text-green-300">help</span>      <span class="text-gray-400">- Menampilkan menu bantuan ini</span>\n`;
-                termOutput.innerHTML += `<span class="text-green-300">about</span>     <span class="text-gray-400">- Informasi tentang aplikasi dan developer</span>\n`;
-                termOutput.innerHTML += `<span class="text-green-300">clear</span>     <span class="text-gray-400">- Membersihkan layar terminal</span>\n`;
-                termOutput.innerHTML += `<span class="text-green-300">version</span>   <span class="text-gray-400">- Menampilkan versi aplikasi saat ini</span>\n`;
-                termOutput.innerHTML += `<span class="text-green-300">support / donasi / traktir</span>   <span class="text-gray-400">- Menampilkan dukungan rekan-rekan</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-500">----------------------------------------------------</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-400">💡 Kamu juga bisa menjalankan perintah OS bawaan (npm, git, go, dir, ls, dll).</span>\n`;
+                termOutput.innerHTML += `<span class="text-blue-600 dark:text-blue-300 font-bold">Perintah bawaan NgAppID Code Editor:</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-700 dark:text-green-300">help</span>      <span class="text-gray-600 dark:text-gray-400">- Menampilkan menu bantuan ini</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-700 dark:text-green-300">about</span>     <span class="text-gray-600 dark:text-gray-400">- Informasi tentang aplikasi dan developer</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-700 dark:text-green-300">clear</span>     <span class="text-gray-600 dark:text-gray-400">- Membersihkan layar terminal</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-700 dark:text-green-300">version</span>   <span class="text-gray-600 dark:text-gray-400">- Menampilkan versi aplikasi saat ini</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-700 dark:text-green-300">support / donasi / traktir</span>   <span class="text-gray-600 dark:text-gray-400">- Menampilkan dukungan rekan-rekan</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-400 dark:text-gray-500">----------------------------------------------------</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-600 dark:text-gray-400">💡 Kamu juga bisa menjalankan perintah OS bawaan (npm, git, go, dir, ls, dll).</span>\n`;
                 termOutput.scrollTop = termOutput.scrollHeight;
                 return;
             }
             else if (cmdLower === 'about' || cmdLower === 'developer') {
-                termOutput.innerHTML += `<span class="text-blue-400 font-bold">🚀 NgAppID Code Editor ${window.APP_VERSION || ''}</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Sebuah karya untuk kemudahan developer di seluruh Nusantara.</span>\n\n`;
-                termOutput.innerHTML += `<span class="text-yellow-400 font-bold">👨‍💻 Developer Info:</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Author  : Yedi Nurwali (YedinCoder)</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Team    : NgAppID</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Website : <a href="https://yedin.my.id" target="_blank" class="text-blue-400 hover:underline">yedin.my.id</a> | <a href="https://dev.ngappid.com" target="_blank" class="text-blue-400 hover:underline">dev.ngappid.com</a> | <a href="https://ngappid.com" target="_blank" class="text-blue-400 hover:underline">ngappid.com</a></span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Kontak  : 081802161315</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Email   : yedincoder@gmail.com</span>\n`;
+                termOutput.innerHTML += `<span class="text-blue-600 dark:text-blue-400 font-bold">🚀 NgAppID Code Editor ${window.APP_VERSION || ''}</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Sebuah karya untuk kemudahan developer di seluruh Nusantara.</span>\n\n`;
+                termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400 font-bold">👨‍💻 Developer Info:</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Author  : Yedi Nurwali (YedinCoder)</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Team    : NgAppID</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Website : <a href="https://yedin.my.id" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">yedin.my.id</a> | <a href="https://dev.ngappid.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">dev.ngappid.com</a> | <a href="https://ngappid.com" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">ngappid.com</a></span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Kontak  : 081802161315</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-700 dark:text-gray-300">Email   : yedincoder@gmail.com</span>\n`;
                 termOutput.scrollTop = termOutput.scrollHeight;
                 return;
             }
             else if (cmdLower === 'version') {
-                termOutput.innerHTML += `<span class="text-cyan-400">NgAppID Code Editor Version: <strong>${window.APP_VERSION || 'Unknown'}</strong></span>\n`;
+                termOutput.innerHTML += `<span class="text-cyan-600 dark:text-cyan-400">NgAppID Code Editor Version: <strong>${window.APP_VERSION || 'Unknown'}</strong></span>\n`;
                 termOutput.scrollTop = termOutput.scrollHeight;
                 return;
             }
             else if (cmdLower === 'ungit') {
                 if (!currentFolderPath) {
-                    termOutput.innerHTML += `<span class="text-red-400">Error: Buka folder project dulu!</span>\n`;
+                    termOutput.innerHTML += `<span class="text-red-600 dark:text-red-400">Error: Buka folder project dulu!</span>\n`;
                     termOutput.scrollTop = termOutput.scrollHeight;
                     return;
                 }
-            // --- END CUSTOM COMMANDS ---
                 terminalState = 'AWAITING_UNGIT_CONFIRM';
-                termOutput.innerHTML += `<span class="text-red-400 font-bold">⚠️ PERINGATAN: Ini akan menghapus folder .git beserta SEMUA history commit lokal!</span>\n`;
-                termOutput.innerHTML += `<span class="text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
+                termOutput.innerHTML += `<span class="text-red-600 dark:text-red-400 font-bold">⚠️ PERINGATAN: Ini akan menghapus folder .git beserta SEMUA history commit lokal!</span>\n`;
+                termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
                 termOutput.scrollTop = termOutput.scrollHeight;
                 return;
             }
-            // --- END CUSTOM COMMANDS ---
-
-			// 👇 BLOK SUPPORT / DONASI (POLOS & NORMAL) 👇
             else if (cmdLower === 'support' || cmdLower === 'donasi' || cmdLower === 'traktir') {
                 termOutput.innerHTML += `
-<div class="flex flex-row gap-4 my-2 items-start">
-    <!-- Kiri: QRIS -->
-    <img src="qris.png" alt="QRIS Donasi" class="w-20 h-20 object-contain rounded border border-[#444] bg-white p-1">
-    
-    <!-- Kanan: Teks Normal -->
-    <div class="flex flex-col text-gray-300 text-sm">
-	<span class="text-blue-400 font-bold">☕ Dukung Pengembangan NgAppID Code Editor</span>\n
-	<span class="text-gray-300">Jika aplikasi ini membantu pekerjaanmu, traktir kopi developer-nya yuk!</span>\n
-        <span class="text-yellow-400 font-bold mb-1">💳 Konfirmasi WA: 081802161315</span>
-        <span class="text-green-400 italic">Terima kasih banyak atas dukunganmu! Setiap donasi sangat berarti untuk kelancaran riset dan pengembangan NgAppID selanjutnya. 🙏</span>
-    </div>
-</div>\n`;
-                
+            <div class="flex flex-row gap-4 my-2 items-start">
+                <img src="qris.png" alt="QRIS Donasi" class="w-20 h-20 object-contain rounded border border-gray-300 dark:border-[#444] bg-white p-1">
+                <div class="flex flex-col text-gray-700 dark:text-gray-300 text-sm">
+                    <span class="text-blue-600 dark:text-blue-400 font-bold">☕ Dukung Pengembangan NgAppID Code Editor</span>
+                    <span class="text-gray-700 dark:text-gray-300">Jika aplikasi ini membantu pekerjaanmu, traktir kopi developer-nya yuk!</span>
+                    <span class="text-yellow-600 dark:text-yellow-400 font-bold mb-1">💳 Konfirmasi WA: 081802161315</span>
+                    <span class="text-green-700 dark:text-green-400 italic">Terima kasih banyak atas dukunganmu! Setiap donasi sangat berarti untuk kelancaran riset dan pengembangan NgAppID selanjutnya. 🙏</span>
+                </div>
+            </div>\n`;
                 setTimeout(() => {
                     termOutput.scrollTop = termOutput.scrollHeight;
                 }, 150);
-                
                 return; 
             }
-            // 👆 BATAS BLOK TAMBAHAN 👆
-			
-			
-            // Eksekusi OS Command standar jika bukan perintah bawaan
+            
             termInput.disabled = true;
             termInput.placeholder = "⏳ Memproses...";
             
             try { 
                 termOutput.innerHTML += await RunCommand(currentFolderPath, cmd); 
             } catch (err) { 
-                termOutput.innerHTML += `<span class="text-red-400">${err}</span>`; 
+                termOutput.innerHTML += `<span class="text-red-600 dark:text-red-400">${err}</span>`; 
             } finally {
                 termOutput.scrollTop = termOutput.scrollHeight;
                 refreshSidebar();
@@ -528,37 +668,33 @@ termInput.addEventListener('keydown', async (e) => {
             return;
         }
 
-        // Logic State Machine (Git Config, Reset, Ungit)
         termInput.value = '';
-        termOutput.innerHTML += `<span class="text-yellow-400">${cmd}</span>\n`; 
+        termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">${cmd}</span>\n`; 
 
         if (terminalState === 'AWAITING_SETUP_NAME') {
-            // ... (kode setup name bawaanmu tetap di sini)
             if (!cmd) {
-                termOutput.innerHTML += `<span class="text-red-400">✖ Nama tidak boleh kosong. Setup dibatalkan.</span>\n`;
+                termOutput.innerHTML += `<span class="text-red-600 dark:text-red-400">✖ Nama tidak boleh kosong. Setup dibatalkan.</span>\n`;
                 terminalState = 'NORMAL';
             } else {
                 setupData.name = cmd;
                 terminalState = 'AWAITING_SETUP_EMAIL';
-                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 2. Masukkan Email (contoh: me@yedin.my.id): </span>`;
+                termOutput.innerHTML += `<span class="text-blue-600 dark:text-blue-400">[Git Setup] 2. Masukkan Email (contoh: me@yedin.my.id): </span>`;
             }
         } 
         else if (terminalState === 'AWAITING_SETUP_EMAIL') {
-            // ... (kode setup email bawaanmu tetap di sini)
             if (!cmd) {
-                termOutput.innerHTML += `<span class="text-red-400">✖ Email tidak boleh kosong. Setup dibatalkan.</span>\n`;
+                termOutput.innerHTML += `<span class="text-red-600 dark:text-red-400">✖ Email tidak boleh kosong. Setup dibatalkan.</span>\n`;
                 terminalState = 'NORMAL';
             } else {
                 setupData.email = cmd;
                 terminalState = 'AWAITING_SETUP_REMOTE';
-                termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 3. Masukkan URL GitHub Repo (Kosongkan/Enter jika tidak ada): </span>`;
+                termOutput.innerHTML += `<span class="text-blue-600 dark:text-blue-400">[Git Setup] 3. Masukkan URL GitHub Repo (Kosongkan/Enter jika tidak ada): </span>`;
             }
         }
         else if (terminalState === 'AWAITING_SETUP_REMOTE') {
-            // ... (kode setup remote bawaanmu tetap di sini)
             setupData.remote = cmd;
             terminalState = 'NORMAL'; 
-            termOutput.innerHTML += `<span class="text-gray-300">Memproses Git Setup...</span>\n`;
+            termOutput.innerHTML += `<span class="text-gray-600 dark:text-gray-300">Memproses Git Setup...</span>\n`;
             
             termInput.disabled = true;
             try {
@@ -579,10 +715,9 @@ termInput.addEventListener('keydown', async (e) => {
             }
         }
         else if (terminalState === 'AWAITING_RESET_CONFIRM') {
-            // ... (kode reset bawaanmu tetap di sini)
             terminalState = 'NORMAL';
             if (cmd.toLowerCase() === 'y' || cmd.toLowerCase() === 'yes') {
-                termOutput.innerHTML += `<span class="text-yellow-400">Memproses Git Reset --hard HEAD...</span>\n`;
+                termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Memproses Git Reset --hard HEAD...</span>\n`;
                 termInput.disabled = true;
                 try {
                     const output = await GitReset(currentFolderPath);
@@ -595,21 +730,18 @@ termInput.addEventListener('keydown', async (e) => {
                     termInput.focus();
                 }
             } else {
-                termOutput.innerHTML += `<span class="text-gray-400">✔ Git Reset dibatalkan.</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-600 dark:text-gray-400">✔ Git Reset dibatalkan.</span>\n`;
             }
         }
-        // 👇 TAMBAHKAN LOGIKA UNGIT DI SINI 👇
         else if (terminalState === 'AWAITING_UNGIT_CONFIRM') {
             terminalState = 'NORMAL';
             if (cmd.toLowerCase() === 'y' || cmd.toLowerCase() === 'yes') {
-                termOutput.innerHTML += `<span class="text-yellow-400">Menghapus folder .git...</span>\n`;
+                termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Menghapus folder .git...</span>\n`;
                 termInput.disabled = true;
                 try {
-                    // Deteksi separator folder sesuai OS (Windows pakai \ , Mac/Linux pakai /)
                     const separator = currentFolderPath.includes('\\') ? '\\' : '/';
                     const gitPath = currentFolderPath + separator + '.git';
                     
-                    // Gunakan fungsi hapus bawaan backend Wails (super aman & cross-platform)
                     await DeleteItem(gitPath);
                     logToTerminal("ungit", "✔ Folder .git berhasil dihapus. Project ini kembali menjadi folder biasa.");
                     refreshSidebar();
@@ -620,200 +752,135 @@ termInput.addEventListener('keydown', async (e) => {
                     termInput.focus();
                 }
             } else {
-                termOutput.innerHTML += `<span class="text-gray-400">✔ Proses ungit dibatalkan.</span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-600 dark:text-gray-400">✔ Proses ungit dibatalkan.</span>\n`;
             }
         }
         termOutput.scrollTop = termOutput.scrollHeight;
     }
 });
 
+// --- GIT MENU ACTION LISTENERS ---
 const btnGitPull = document.getElementById('btn-git-pull');
-btnGitPull.addEventListener('click', async () => {
-    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum pull!", true);
-    const originalText = btnGitPull.innerText;
-    btnGitPull.innerText = "⏳ Pulling..."; 
-    try {
-        const output = await GitPull(currentFolderPath);
-        logToTerminal("git pull origin main", output);
-        refreshSidebar();
-    } catch (err) {
-        logToTerminal("git pull origin main", String(err), true);
-    } finally { btnGitPull.innerText = originalText; }
-});
+if (btnGitPull) {
+    btnGitPull.addEventListener('click', async () => {
+        if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum pull!", true);
+        const originalText = btnGitPull.innerText;
+        btnGitPull.innerText = "⏳ Pulling..."; 
+        try {
+            const output = await GitPull(currentFolderPath);
+            logToTerminal("git pull origin main", output);
+            refreshSidebar();
+        } catch (err) {
+            logToTerminal("git pull origin main", String(err), true);
+        } finally { btnGitPull.innerText = originalText; }
+    });
+}
 
 const commitModal = document.getElementById('commit-modal');
 const commitInput = document.getElementById('commit-message');
 const btnGitPush = document.getElementById('btn-git-push');
 
-btnGitPush.addEventListener('click', () => {
-    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum push!", true);
-    commitModal.classList.remove('hidden'); commitInput.focus(); 
-});
-document.getElementById('btn-cancel-commit').addEventListener('click', () => { commitModal.classList.add('hidden'); commitInput.value = ''; });
-
-document.getElementById('btn-submit-commit').addEventListener('click', async () => {
-    const message = commitInput.value.trim() || "Update files via NgAppID Code Editor";
-    commitModal.classList.add('hidden'); commitInput.value = '';
-    const originalText = btnGitPush.innerText;
-    btnGitPush.innerText = "⏳ Pushing...";
-    try {
-        const output = await GitCommitAndPush(currentFolderPath, message);
-        logToTerminal(`git commit -m "${message}" && git push -u origin main`, output);
-        refreshSidebar();
-    } catch (err) {
-        logToTerminal("git commit & push", String(err), true);
-    } finally { btnGitPush.innerText = originalText; }
-});
-commitInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-submit-commit').click(); });
-
-document.getElementById('btn-git-init').addEventListener('click', async () => {
-    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum init repo!", true);
-    try { 
-        const output = await GitInit(currentFolderPath); 
-        logToTerminal("git init", output);
-        refreshSidebar(); 
-    } catch (err) { 
-        logToTerminal("git init", String(err), true);
-    }
-});
-
-const btnGitReset = document.getElementById('btn-git-reset');
-btnGitReset.addEventListener('click', () => {
-    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum reset!", true);
-    
-    const panel = document.getElementById('terminal-panel');
-    panel.classList.remove('hidden'); 
-    
-    terminalState = 'AWAITING_RESET_CONFIRM';
-    
-    termOutput.innerHTML += `\n<span class="text-red-400 font-bold">⚠️ PERINGATAN: Git Reset akan menghapus SEMUA perubahan kode yang belum di-commit!</span>\n`;
-    termOutput.innerHTML += `<span class="text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
-    termOutput.scrollTop = termOutput.scrollHeight;
-    termInput.focus();
-});
-
-const btnGitSetup = document.getElementById('btn-git-setup');
-btnGitSetup.addEventListener('click', () => { 
-    document.getElementById('git-dropdown').classList.add('hidden'); 
-    
-    const panel = document.getElementById('terminal-panel');
-    panel.classList.remove('hidden'); 
-    
-    terminalState = 'AWAITING_SETUP_NAME';
-    setupData = { name: '', email: '', remote: '' };
-    
-    termOutput.innerHTML += `\n<span class="text-blue-400 font-bold">--- MEMULAI GIT SETUP ---</span>\n`;
-    termOutput.innerHTML += `<span class="text-blue-400">[Git Setup] 1. Masukkan Nama (contoh: Yedin Coder): </span>`;
-    termOutput.scrollTop = termOutput.scrollHeight;
-    termInput.focus();
-});
-const btnGitUngit = document.getElementById('btn-git-ungit');
-btnGitUngit.addEventListener('click', () => {
-    document.getElementById('git-dropdown').classList.add('hidden'); 
-    
-    if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum menghapus Git!", true);
-    
-    const panel = document.getElementById('terminal-panel');
-    panel.classList.remove('hidden'); 
-    
-    terminalState = 'AWAITING_UNGIT_CONFIRM';
-    
-    termOutput.innerHTML += `\n<span class="text-red-400 font-bold">⚠️ PERINGATAN: Ini akan menghapus folder .git beserta SEMUA history commit lokal!</span>\n`;
-    termOutput.innerHTML += `<span class="text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
-    termOutput.scrollTop = termOutput.scrollHeight;
-    termInput.focus();
-});
-const gitDropdown = document.getElementById('git-dropdown');
-document.getElementById('btn-git-menu').addEventListener('click', (e) => { e.stopPropagation(); gitDropdown.classList.toggle('hidden'); });
-window.addEventListener('click', () => { if (!gitDropdown.classList.contains('hidden')) gitDropdown.classList.add('hidden'); });
-
-document.addEventListener('contextmenu', (e) => {
-    const editorArea = document.getElementById('editor');
-    const terminalInput = document.getElementById('terminal-input');
-    if (!editorArea.contains(e.target) && e.target !== terminalInput) e.preventDefault();
-});
-
-// --- LOGIKA CLOSE PROJECT ---
-document.getElementById('btn-close-project').addEventListener('click', (e) => {
-    e.stopPropagation();
-    
-    // Hapus data dari memori dan cache browser
-    currentFolderPath = "";
-    localStorage.removeItem('lastFolder');
-    expandedFolders.clear();
-    
-    // Hancurkan semua model (tab) yang terbuka di memori Monaco Editor
-    tabs.forEach(t => t.model.dispose());
-    tabs = [];
-    activeFilePath = null;
-    if (editorInstance) editorInstance.setModel(null);
-    
-    // Tutup UI Sidebar, Resizer, dan Terminal
-    document.getElementById('sidebar').classList.add('hidden');
-    document.getElementById('resizer').classList.add('hidden');
-    document.getElementById('terminal-panel').classList.add('hidden');
-    document.getElementById('file-list').innerHTML = '';
-    
-    // Render ulang UI (ini akan otomatis memunculkan kembali Welcome Screen)
-    renderTabs();
-});
-
-// --- RECENT HISTORY MANAGER ---
-function getRecentProjects() {
-    try {
-        return JSON.parse(localStorage.getItem('ngappid_recent') || '[]');
-    } catch {
-        return [];
-    }
-}
-
-function addRecentProject(folderPath) {
-    if (!folderPath) return;
-    let list = getRecentProjects();
-    // Hapus jika sudah ada agar naik ke urutan paling atas
-    list = list.filter(p => p !== folderPath);
-    list.unshift(folderPath); // Masukkan ke urutan pertama
-    if (list.length > 10) list.pop(); // Batasi maksimal 10 riwayat
-    localStorage.setItem('ngappid_recent', JSON.stringify(list));
-    renderRecentHistory();
-}
-
-function renderRecentHistory() {
-    const container = document.getElementById('recent-history-container');
-    if (!container) return;
-    
-    const list = getRecentProjects();
-    if (list.length === 0) {
-        container.innerHTML = `<p class="text-xs text-gray-500 italic py-2 text-center">Belum ada riwayat project tersimpan.</p>`;
-        return;
-    }
-
-    container.innerHTML = '';
-    list.forEach(path => {
-        const folderName = path.split(/[/\\]/).pop();
-        const itemEl = document.createElement('div');
-        itemEl.className = "flex items-center justify-between p-2.5 bg-[#2d2d2d]/60 hover:bg-[#37373d] border border-[#444]/30 rounded-lg text-xs cursor-pointer transition group";
-        itemEl.innerHTML = `
-            <div class="flex items-center gap-2.5 truncate flex-1 mr-2">
-                <span class="text-base">📂</span>
-                <div class="truncate">
-                    <div class="font-medium text-gray-200 group-hover:text-blue-300 truncate">${folderName}</div>
-                    <div class="text-[10px] text-gray-500 truncate">${path}</div>
-                </div>
-            </div>
-            <span class="text-[10px] text-gray-500 group-hover:text-gray-300 bg-[#1e1e1e] px-2 py-1 rounded border border-[#444]">Buka</span>
-        `;
-        itemEl.onclick = () => loadFolderData(path);
-        container.appendChild(itemEl);
+if (btnGitPush) {
+    btnGitPush.addEventListener('click', () => {
+        if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum push!", true);
+        commitModal.classList.remove('hidden'); commitInput.focus(); 
     });
 }
 
-// Panggil fungsi render riwayat saat pertama kali script dimuat
-document.addEventListener("DOMContentLoaded", () => {
-    renderRecentHistory();
-});
+if (document.getElementById('btn-cancel-commit')) {
+    document.getElementById('btn-cancel-commit').addEventListener('click', () => { commitModal.classList.add('hidden'); commitInput.value = ''; });
+}
 
-// Event listener untuk tombol interaktif di dalam Welcome Screen
+if (document.getElementById('btn-submit-commit')) {
+    document.getElementById('btn-submit-commit').addEventListener('click', async () => {
+        const message = commitInput.value.trim() || "Update files via NgAppID Code Editor";
+        commitModal.classList.add('hidden'); commitInput.value = '';
+        const originalText = btnGitPush.innerText;
+        btnGitPush.innerText = "⏳ Pushing...";
+        try {
+            const output = await GitCommitAndPush(currentFolderPath, message);
+            logToTerminal(`git commit -m "${message}" && git push -u origin main`, output);
+            refreshSidebar();
+        } catch (err) {
+            logToTerminal("git commit & push", String(err), true);
+        } finally { btnGitPush.innerText = originalText; }
+    });
+}
+
+if (commitInput) {
+    commitInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-submit-commit').click(); });
+}
+
+if (document.getElementById('btn-git-init')) {
+    document.getElementById('btn-git-init').addEventListener('click', async () => {
+        if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum init repo!", true);
+        try { 
+            const output = await GitInit(currentFolderPath); 
+            logToTerminal("git init", output);
+            refreshSidebar(); 
+        } catch (err) { 
+            logToTerminal("git init", String(err), true);
+        }
+    });
+}
+
+const btnGitReset = document.getElementById('btn-git-reset');
+if (btnGitReset) {
+    btnGitReset.addEventListener('click', () => {
+        if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum reset!", true);
+        
+        const panel = document.getElementById('terminal-panel');
+        panel.classList.remove('hidden'); 
+        
+        terminalState = 'AWAITING_RESET_CONFIRM';
+        
+        termOutput.innerHTML += `\n<span class="text-red-600 dark:text-red-400 font-bold">⚠️ PERINGATAN: Git Reset akan menghapus SEMUA perubahan kode yang belum di-commit!</span>\n`;
+        termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+        termInput.focus();
+    });
+}
+
+const btnGitSetup = document.getElementById('btn-git-setup');
+if (btnGitSetup) {
+    btnGitSetup.addEventListener('click', () => { 
+        const dropdown = document.getElementById('git-dropdown');
+        if (dropdown) dropdown.classList.add('hidden'); 
+        
+        const panel = document.getElementById('terminal-panel');
+        panel.classList.remove('hidden'); 
+        
+        terminalState = 'AWAITING_SETUP_NAME';
+        setupData = { name: '', email: '', remote: '' };
+        
+        termOutput.innerHTML += `\n<span class="text-blue-600 dark:text-blue-400 font-bold">--- MEMULAI GIT SETUP ---</span>\n`;
+        termOutput.innerHTML += `<span class="text-blue-600 dark:text-blue-400">[Git Setup] 1. Masukkan Nama (contoh: Yedin Coder): </span>`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+        termInput.focus();
+    });
+}
+
+const btnGitUngit = document.getElementById('btn-git-ungit');
+if (btnGitUngit) {
+    btnGitUngit.addEventListener('click', () => {
+        const dropdown = document.getElementById('git-dropdown');
+        if (dropdown) dropdown.classList.add('hidden'); 
+        
+        if (!currentFolderPath) return logToTerminal("Git", "Buka folder project dulu sebelum menghapus Git!", true);
+        
+        const panel = document.getElementById('terminal-panel');
+        panel.classList.remove('hidden'); 
+        
+        terminalState = 'AWAITING_UNGIT_CONFIRM';
+        
+        termOutput.innerHTML += `\n<span class="text-red-600 dark:text-red-400 font-bold">⚠️ PERINGATAN: Ini akan menghapus folder .git beserta SEMUA history commit lokal!</span>\n`;
+        termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+        termInput.focus();
+    });
+}
+
+// --- WELCOME SCREEN INTERACTIVE BUTTONS ---
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'w-btn-clear-history') {
         localStorage.removeItem('ngappid_recent');
@@ -821,30 +888,24 @@ document.addEventListener('click', (e) => {
     }
 });
 
-document.getElementById('w-btn-open-folder').addEventListener('click', async () => {
-    const result = await OpenFolderDialog();
-    if (result && result.base_path) {
-        addRecentProject(result.base_path);
-        loadFolderData(result.base_path);
-    }
-});
+if (document.getElementById('w-btn-open-folder')) {
+    document.getElementById('w-btn-open-folder').addEventListener('click', async () => {
+        const result = await OpenFolderDialog();
+        if (result && result.base_path) {
+            addRecentProject(result.base_path);
+            loadFolderData(result.base_path);
+        }
+    });
+}
 
-document.getElementById('w-btn-open-file').addEventListener('click', async () => {
-    const fileInfo = await OpenFile();
-    if (fileInfo && fileInfo.path) openTab(fileInfo.path, fileInfo.content);
-});
+if (document.getElementById('w-btn-open-file')) {
+    document.getElementById('w-btn-open-file').addEventListener('click', async () => {
+        const fileInfo = await OpenFile();
+        if (fileInfo && fileInfo.path) openTab(fileInfo.path, fileInfo.content);
+    });
+}
 
-// Jangan lupa update juga fungsi loadFolderData agar otomatis mencatat riwayat
-const originalLoadFolderData = loadFolderData;
-window.loadFolderData = async function(basePath) {
-    addRecentProject(basePath);
-    return originalLoadFolderData(basePath);
-};
-
-
-// ==========================================
-// TAMBAHAN: GLOBAL SEARCH LOGIC
-// ==========================================
+// --- GLOBAL SEARCH LOGIC ---
 const globalSearchInput = document.getElementById('global-search-input');
 const searchResultsContainer = document.getElementById('search-results');
 const fileListContainer = document.getElementById('file-list');
@@ -854,7 +915,6 @@ if (globalSearchInput) {
         if (e.key === 'Enter') {
             const keyword = globalSearchInput.value.trim();
             
-            // Kembalikan ke mode explorer jika input kosong
             if (!keyword) {
                 searchResultsContainer.classList.add('hidden');
                 fileListContainer.classList.remove('hidden');
@@ -866,7 +926,6 @@ if (globalSearchInput) {
                 return;
             }
 
-            // Mode Loading
             fileListContainer.classList.add('hidden');
             searchResultsContainer.classList.remove('hidden');
             searchResultsContainer.innerHTML = '<div class="p-4 text-center text-xs text-blue-400 animate-pulse">⏳ Sedang mencari...</div>';
@@ -882,14 +941,12 @@ if (globalSearchInput) {
 }
 
 function renderSearchResults(results, keyword) {
-    searchResultsContainer.innerHTML = ''; // Bersihkan loading state
+    searchResultsContainer.innerHTML = ''; 
 
-    // Header Panel Pencarian
     const headerDiv = document.createElement('div');
     headerDiv.className = "flex justify-between items-center px-3 py-1.5 bg-[#2d2d2d] border-b border-[#444] text-[10px] font-bold text-gray-400 uppercase tracking-wider sticky top-0 z-10 shadow-md";
     headerDiv.innerHTML = `<span>${results ? results.length : 0} HASIL DITEMUKAN</span>`;
     
-    // Tombol close pencarian
     const closeBtn = document.createElement('button');
     closeBtn.className = "hover:text-red-400 transition px-1 text-xs cursor-pointer";
     closeBtn.innerText = "✖";
@@ -906,16 +963,14 @@ function renderSearchResults(results, keyword) {
         return;
     }
 
-    // Tampilkan list hasil
     results.forEach(res => {
         const fileName = res.path.split(/[/\\]/).pop();
         const resultItem = document.createElement('div');
         resultItem.className = "py-2 px-3 border-b border-[#333]/50 hover:bg-[#37373d] cursor-pointer group";
         
-        // Buat highlight teks yang dicari
         const regex = new RegExp(`(${keyword})`, 'gi');
         const highlightedText = res.line_text
-            .replace(/</g, "&lt;").replace(/>/g, "&gt;") // Cegah XSS / tag HTML bocor
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;") 
             .replace(regex, `<span class="bg-blue-500/40 text-blue-100 rounded px-0.5">$1</span>`);
 
         resultItem.innerHTML = `
@@ -928,7 +983,6 @@ function renderSearchResults(results, keyword) {
             </div>
         `;
 
-        // Event Klik: Buka file dan scroll ke baris
         resultItem.addEventListener('click', async () => {
             try {
                 if (activeFilePath !== res.path) {
@@ -936,7 +990,6 @@ function renderSearchResults(results, keyword) {
                     openTab(res.path, content);
                 }
                 
-                // Panggil API Monaco untuk scroll dan menempatkan kursor ke baris yang ditemukan
                 setTimeout(() => {
                     if (editorInstance) {
                         editorInstance.revealLineInCenter(res.line_number);
@@ -952,3 +1005,342 @@ function renderSearchResults(results, keyword) {
         searchResultsContainer.appendChild(resultItem);
     });
 }
+
+// --- DROPDOWN MENUS & SYSTEM CONTEXT CONTROL ---
+const gitDropdown = document.getElementById('git-dropdown');
+const ftpDropdown = document.getElementById('ftp-dropdown'); 
+const settingsDropdown = document.getElementById('settings-dropdown');
+
+const btnGitMenu = document.getElementById('btn-git-menu');
+const btnFtpMenu = document.getElementById('btn-ftp-menu'); 
+const btnSettingsMenu = document.getElementById('btn-settings-menu');
+
+// Fungsi sapu jagat untuk menutup SEMUA dropdown
+const closeAllMenus = () => {
+    if (gitDropdown) gitDropdown.classList.add('hidden');
+    if (ftpDropdown) ftpDropdown.classList.add('hidden');
+    if (settingsDropdown) settingsDropdown.classList.add('hidden');
+};
+
+// Logika Klik Menu GIT
+if (btnGitMenu) {
+    btnGitMenu.addEventListener('click', (e) => { 
+        e.stopPropagation(); 
+        const isHidden = gitDropdown.classList.contains('hidden');
+        closeAllMenus(); // Tutup semua dulu
+        if (isHidden) gitDropdown.classList.remove('hidden'); // Buka jika sebelumnya tertutup
+    });
+}
+
+// Logika Klik Menu FTP
+if (btnFtpMenu) {
+    btnFtpMenu.addEventListener('click', (e) => { 
+        e.stopPropagation(); 
+        const isHidden = ftpDropdown.classList.contains('hidden');
+        closeAllMenus();
+        if (isHidden) ftpDropdown.classList.remove('hidden'); 
+    });
+}
+
+// Logika Klik Menu SETTINGS
+if (btnSettingsMenu) {
+    btnSettingsMenu.addEventListener('click', (e) => { 
+        e.stopPropagation(); 
+        const isHidden = settingsDropdown.classList.contains('hidden');
+        closeAllMenus();
+        if (isHidden) settingsDropdown.classList.remove('hidden'); 
+    });
+}
+
+// Klik sembarang tempat di luar menu = tutup semua
+window.addEventListener('click', closeAllMenus);
+
+// Cegah menu tertutup saat isinya sedang diklik
+if (gitDropdown) gitDropdown.addEventListener('click', (e) => e.stopPropagation());
+if (ftpDropdown) ftpDropdown.addEventListener('click', (e) => e.stopPropagation());
+if (settingsDropdown) settingsDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+// Blokir klik kanan bawaan browser (kecuali di editor & terminal)
+document.addEventListener('contextmenu', (e) => {
+    const editorArea = document.getElementById('editor');
+    const terminalInput = document.getElementById('terminal-input');
+    if (!editorArea && !terminalInput) return;
+    if ((editorArea && editorArea.contains(e.target)) || (terminalInput && e.target === terminalInput)) return;
+    e.preventDefault();
+});
+
+// --- SETTINGS MODAL & THEME LOGIC ---
+const settingsModal = document.getElementById('settings-modal');
+const settingTheme = document.getElementById('setting-theme');
+const settingFontSize = document.getElementById('setting-font-size');
+
+if (document.getElementById('btn-editor-settings')) {
+    document.getElementById('btn-editor-settings').addEventListener('click', () => {
+        if (settingsDropdown) settingsDropdown.classList.add('hidden');
+
+        const currentConfig = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark', fontSize: 14 };
+        if (settingTheme) settingTheme.value = currentConfig.theme;
+        if (settingFontSize) settingFontSize.value = currentConfig.fontSize;
+        if (settingsModal) settingsModal.classList.remove('hidden');
+    });
+
+    const closeSettings = () => { if (settingsModal) settingsModal.classList.add('hidden'); };
+    if (document.getElementById('btn-cancel-settings')) document.getElementById('btn-cancel-settings').addEventListener('click', closeSettings);
+    if (document.getElementById('btn-close-settings-x')) document.getElementById('btn-close-settings-x').addEventListener('click', closeSettings);
+
+    if (document.getElementById('btn-save-settings')) {
+        document.getElementById('btn-save-settings').addEventListener('click', () => {
+            const newTheme = settingTheme ? settingTheme.value : 'vs-dark';
+            const newFontSize = parseInt(settingFontSize ? settingFontSize.value : 14) || 14;
+            
+            const newConfig = { theme: newTheme, fontSize: newFontSize };
+            localStorage.setItem('ngappid_settings', JSON.stringify(newConfig));
+            
+            if (typeof monaco !== 'undefined' && editorInstance) {
+                monaco.editor.setTheme(newTheme); 
+                editorInstance.updateOptions({ fontSize: newFontSize }); 
+            }
+
+            if (newTheme === 'vs') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+            
+            closeSettings();
+            logToTerminal("Settings", "✔ Pengaturan tema dan font berhasil diterapkan.");
+        });
+    }
+}
+
+// --- APP STARTUP HANDLER ---
+document.addEventListener("DOMContentLoaded", () => {
+    renderRecentHistory();
+    
+    const savedConfig = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark' };
+    if (savedConfig.theme === 'vs') {
+        document.documentElement.classList.remove('dark');
+    } else {
+        document.documentElement.classList.add('dark');
+    }
+});
+
+// --- CLOSE PROJECT LOGIC ---
+const btnCloseProject = document.getElementById('btn-close-project');
+if (btnCloseProject) {
+    btnCloseProject.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        currentFolderPath = "";
+        localStorage.removeItem('lastFolder');
+        expandedFolders.clear();
+        
+        tabs.forEach(t => t.model.dispose());
+        tabs = [];
+        activeFilePath = null;
+        if (editorInstance) editorInstance.setModel(null);
+        
+        document.getElementById('sidebar').classList.add('hidden');
+        document.getElementById('resizer').classList.add('hidden');
+        document.getElementById('terminal-panel').classList.add('hidden');
+        document.getElementById('file-list').innerHTML = '';
+        
+        renderTabs();
+    });
+}
+
+// ==========================================
+// QUICK TOGGLE WORD WRAP DARI DROPDOWN
+// ==========================================
+const btnToggleWordwrap = document.getElementById('btn-toggle-wordwrap');
+const wordwrapStatus = document.getElementById('wordwrap-status');
+
+if (btnToggleWordwrap) {
+    // 1. Set status awal saat aplikasi pertama kali dimuat
+    const currentConfig = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark', fontSize: 14, wordWrap: 'off' };
+    
+    if (wordwrapStatus) {
+        if (currentConfig.wordWrap === 'on') {
+            wordwrapStatus.innerText = 'ON';
+            wordwrapStatus.classList.add('text-green-600', 'dark:text-green-400');
+        } else {
+            wordwrapStatus.innerText = 'OFF';
+        }
+    }
+
+    // 2. Event saat tombol word wrap di dropdown diklik
+    btnToggleWordwrap.addEventListener('click', (e) => {
+        e.stopPropagation(); // Biar menu gak ketutup sendiri sebelum script jalan
+        
+        // Ambil pengaturan terbaru
+        let config = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark', fontSize: 14, wordWrap: 'off' };
+        
+        // Balikkan statusnya (Toggle: kalau on jadi off, kalau off jadi on)
+        config.wordWrap = config.wordWrap === 'on' ? 'off' : 'on';
+        
+        // Simpan ke local storage
+        localStorage.setItem('ngappid_settings', JSON.stringify(config));
+        
+        // Terapkan ke Monaco Editor secara instan
+        if (typeof monaco !== 'undefined' && editorInstance) {
+            editorInstance.updateOptions({ wordWrap: config.wordWrap });
+        }
+        
+        // Update tampilan label ON / OFF di dropdown
+        if (wordwrapStatus) {
+            wordwrapStatus.innerText = config.wordWrap === 'on' ? 'ON' : 'OFF';
+            if (config.wordWrap === 'on') {
+                wordwrapStatus.classList.add('text-green-600', 'dark:text-green-400');
+            } else {
+                wordwrapStatus.classList.remove('text-green-600', 'dark:text-green-400');
+            }
+        }
+        
+        // Tutup menu dropdown
+        const settingsDropdown = document.getElementById('settings-dropdown');
+        if (settingsDropdown) settingsDropdown.classList.add('hidden');
+        
+        logToTerminal("Settings", `✔ Word Wrap diubah menjadi: ${config.wordWrap.toUpperCase()}`);
+    });
+}
+
+// ==========================================
+// FTP MODAL & LOGIC CONTROLLER
+// ==========================================
+const ftpModal = document.getElementById('ftp-modal');
+
+// 2. Tombol di dalam Menu Dropdown FTP
+document.getElementById('btn-ftp-connect').addEventListener('click', () => {
+    if (ftpDropdown) ftpDropdown.classList.add('hidden');
+    if (ftpModal) ftpModal.classList.remove('hidden');
+});
+
+document.getElementById('btn-ftp-disconnect').addEventListener('click', async () => {
+    if (ftpDropdown) ftpDropdown.classList.add('hidden');
+    try {
+        const msg = await FTPDisconnect();
+        logToTerminal("FTP", msg);
+    } catch (err) {
+        logToTerminal("FTP", String(err), true);
+    }
+});
+
+document.getElementById('btn-ftp-open').addEventListener('click', async () => {
+    if (ftpDropdown) ftpDropdown.classList.add('hidden');
+    const remotePath = await CustomPrompt("Masukkan path/lokasi file di server FTP\n(Contoh: public_html/index.php)");
+    
+    if (remotePath) {
+        logToTerminal("FTP", `⏳ Mengunduh file ${remotePath} dari server...`);
+        try {
+            const content = await FTPReadFile(remotePath);
+            // Tambahkan embel-embel "FTP://" supaya dibaca sebagai file server saat disave
+            openTab("FTP://" + remotePath, content, true); 
+            logToTerminal("FTP", `✔ Berhasil membuka ${remotePath}`);
+        } catch (err) {
+            logToTerminal("FTP Error", String(err), true);
+        }
+    }
+});
+
+// 3. Logika Form Modal Login FTP
+document.getElementById('btn-cancel-ftp').addEventListener('click', () => {
+    if (ftpModal) ftpModal.classList.add('hidden');
+});
+
+document.getElementById('btn-login-ftp').addEventListener('click', async () => {
+    const host = document.getElementById('ftp-host').value.trim();
+    const port = document.getElementById('ftp-port').value.trim();
+    const user = document.getElementById('ftp-user').value.trim();
+    const pass = document.getElementById('ftp-pass').value.trim();
+
+    if (!host || !user) return await CustomAlert("Host dan Username tidak boleh kosong!");
+
+    const btnLogin = document.getElementById('btn-login-ftp');
+    btnLogin.innerText = "⏳ Connecting...";
+    btnLogin.disabled = true;
+
+    try {
+        const msg = await FTPConnect(host, port, user, pass);
+        logToTerminal("FTP Login", msg);
+        if (ftpModal) ftpModal.classList.add('hidden');
+    } catch (err) {
+        logToTerminal("FTP Error", String(err), true);
+    } finally {
+        btnLogin.innerText = "Koneksikan";
+        btnLogin.disabled = false;
+    }
+});
+
+// ==========================================
+// CUSTOM DIALOGS (PENGGANTI ALERT/CONFIRM/PROMPT BAWAAN)
+// ==========================================
+window.CustomDialog = function(type, message, defaultValue = "") {
+    return new Promise((resolve) => {
+        // Buat background overlay gelap
+        const overlay = document.createElement('div');
+        overlay.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]";
+        
+        // Buat kotak dialog
+        const box = document.createElement('div');
+        box.className = "bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl w-80 border border-gray-300 dark:border-[#444] flex flex-col";
+        
+        const msgEl = document.createElement('p');
+        msgEl.className = "text-sm text-gray-800 dark:text-gray-200 mb-4 whitespace-pre-wrap";
+        msgEl.innerText = message;
+        box.appendChild(msgEl);
+
+        let inputEl;
+        if (type === 'prompt') {
+            inputEl = document.createElement('input');
+            inputEl.type = "text";
+            inputEl.value = defaultValue;
+            inputEl.className = "w-full bg-gray-100 dark:bg-[#1e1e1e] border border-gray-300 dark:border-[#444] text-gray-800 dark:text-white px-2 py-1.5 text-sm rounded focus:outline-none mb-4 focus:border-blue-500";
+            box.appendChild(inputEl);
+        }
+
+        const btnContainer = document.createElement('div');
+        btnContainer.className = "flex justify-end gap-2";
+
+        const closeDialog = (returnValue) => {
+            document.body.removeChild(overlay);
+            resolve(returnValue);
+        };
+
+        if (type === 'confirm' || type === 'prompt') {
+            const btnCancel = document.createElement('button');
+            btnCancel.innerText = "Batal";
+            btnCancel.className = "px-4 py-1.5 bg-gray-300 dark:bg-[#333] hover:bg-gray-400 dark:hover:bg-[#444] text-gray-800 dark:text-gray-200 text-xs rounded transition";
+            btnCancel.onclick = () => closeDialog(type === 'prompt' ? null : false);
+            btnContainer.appendChild(btnCancel);
+        }
+
+        const btnOk = document.createElement('button');
+        btnOk.innerText = "OK";
+        btnOk.className = "px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition";
+        btnOk.onclick = () => {
+            if (type === 'prompt') closeDialog(inputEl.value);
+            else if (type === 'confirm') closeDialog(true);
+            else closeDialog(true); // alert
+        };
+        btnContainer.appendChild(btnOk);
+
+        box.appendChild(btnContainer);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        // Kalau prompt, langsung fokus ke input box
+        if (type === 'prompt') {
+            inputEl.focus();
+            inputEl.select();
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') btnOk.click();
+                if (e.key === 'Escape') closeDialog(null);
+            });
+        }
+    });
+};
+
+// Bikin fungsi pendek biar gampang dipanggil
+window.CustomAlert = (msg) => CustomDialog('alert', msg);
+window.CustomConfirm = (msg) => CustomDialog('confirm', msg);
+window.CustomPrompt = (msg, def = "") => CustomDialog('prompt', msg, def);
