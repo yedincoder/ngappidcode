@@ -73,7 +73,7 @@ function logToTerminal(command, output, isError = false) {
 
 // --- MONACO EDITOR INITIALIZATION ---
 require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
-require(['vs/editor/editor.main'], function () {
+require(['vs/editor/editor.main'], function() {
     const savedConfig = JSON.parse(localStorage.getItem('ngappid_settings')) || { theme: 'vs-dark', fontSize: 14 };
 
     editorInstance = monaco.editor.create(document.getElementById('editor'), {
@@ -82,12 +82,68 @@ require(['vs/editor/editor.main'], function () {
         fontSize: savedConfig.fontSize
     });
 
-    // --- SHORTCUT AUTO-FORMAT (Shift + Alt + F) ---
-    editorInstance.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, function () {
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async function() {
+        saveActiveFile();
+    });
+    
+    // ==========================================
+    // 1. PASTE KODE AUTO-FORMAT DI SINI
+    // ==========================================
+    editorInstance.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, function() {
         editorInstance.getAction('editor.action.formatDocument').run().then(() => {
-            logToTerminal("System", "✨ Kode berhasil dirapikan (Auto-Format)!");
+            logToTerminal("System", "✨ Kode berhasil dirapikan!");
         });
     });
+
+    // ==========================================
+    // 2. PASTE KODE CUSTOM SNIPPETS DI SINI
+    // ==========================================
+    
+    // Snippet khusus PHP / CodeIgniter 4
+    monaco.languages.registerCompletionItemProvider('php', {
+        provideCompletionItems: function(model, position) {
+            return {
+                suggestions: [
+                    {
+                        label: 'ci4route',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: "$routes->get('${1:path}', '${2:Controller}::${3:method}');",
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'CodeIgniter 4 Route Get'
+                    },
+                    {
+                        label: 'ci4controller',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: "<?php\n\nnamespace App\\Controllers;\n\nclass ${1:NamaController} extends BaseController\n{\n\tpublic function index()\n\t{\n\t\t${2:// tulis kode di sini}\n\t}\n}",
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'Bikin template Controller CI4'
+                    }
+                ]
+            };
+        }
+    });
+
+    // Snippet khusus HTML
+    monaco.languages.registerCompletionItemProvider('html', {
+        provideCompletionItems: function(model, position) {
+            return {
+                suggestions: [
+                    {
+                        label: 'html5',
+                        kind: monaco.languages.CompletionItemKind.Snippet,
+                        insertText: "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\t<title>${1:Document}</title>\n</head>\n<body>\n\t${2}\n</body>\n</html>",
+                        insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                        documentation: 'HTML5 Boilerplate'
+                    }
+                ]
+            };
+        }
+    });
+
+    // ==========================================
+    // BATAS PASTE KODE
+    // ==========================================
+
     renderTabs();
     if (currentFolderPath) loadFolderData(currentFolderPath);
 });
