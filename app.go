@@ -33,8 +33,11 @@ type FolderInfo struct {
 	Files    []FileItem `json:"files"`
 }
 
+const AppVersion = "v1.0.0"
+
 func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
+func (a *App) GetAppVersion() string {return AppVersion}
 
 // --- FILE MANAGEMENT ---
 func (a *App) OpenFile() (FileInfo, error) {

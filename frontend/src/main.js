@@ -2,15 +2,19 @@ import {
     OpenFile, SaveFile, OpenFolderDialog, ReadFileByPath, 
     GitPull, GitCommitAndPush, GetFolderContents,
     CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
-    SetGitConfig, AddGitRemote, GitReset
+    SetGitConfig, AddGitRemote, GitReset, GetAppVersion
 } from '../wailsjs/go/main/App';
+
+GetAppVersion().then(version => {
+    window.APP_VERSION = version;
+    document.getElementById('app-version-display').innerText = `NgAppID Code Editor ${version}`;
+});
 
 let editorInstance;
 let tabs = [];
 let activeFilePath = null;
 let currentFolderPath = localStorage.getItem('lastFolder') || ""; 
 
-// FIX: Simpan state folder yang sedang di-expand di sidebar
 const expandedFolders = new Set();
 
 const languageMap = {
@@ -207,7 +211,6 @@ function createSidebarItem(item, level = 0) {
     const div = document.createElement('div');
     div.className = `py-1 cursor-pointer hover:bg-[#37373d] flex items-center justify-between gap-2 text-sm select-none px-2 group ${colorClass}`;
     
-    // Perbaikan struktur HTML agar input bisa muat di dalam barisnya
     div.innerHTML = `
         <div class="flex items-center gap-2 truncate flex-1 min-w-0">
             <span class="w-4 flex justify-center items-center shrink-0">${getFileIcon(itemName, isDir)}</span> 
@@ -222,29 +225,25 @@ function createSidebarItem(item, level = 0) {
 
     const nameDisplay = div.querySelector('.name-display');
 
-    // -- LOGIKA INLINE RENAME --
     div.querySelector('.btn-rename').addEventListener('click', (e) => {
         e.stopPropagation();
         
-        if (div.querySelector('.rename-input')) return; // Cegah input ganda kalau diklik berkali-kali
+        if (div.querySelector('.rename-input')) return; 
 
-        // Buat elemen input
         const input = document.createElement('input');
         input.type = 'text';
         input.value = itemName;
         input.className = 'rename-input bg-[#1e1e1e] text-white px-1 border border-blue-500 rounded text-xs w-full outline-none focus:ring-1 focus:ring-blue-500';
 
-        // Sembunyikan teks asli, munculkan input
         nameDisplay.style.display = 'none';
         nameDisplay.parentNode.insertBefore(input, nameDisplay.nextSibling);
 
-        // Fokus ke input dan select teks
         input.focus();
         const dotIndex = itemName.lastIndexOf('.');
         if (!isDir && dotIndex > 0) {
-            input.setSelectionRange(0, dotIndex); // Select nama tanpa ekstensi
+            input.setSelectionRange(0, dotIndex); 
         } else {
-            input.select(); // Select semua kalau folder
+            input.select(); 
         }
 
         let isProcessing = false;
@@ -259,11 +258,9 @@ function createSidebarItem(item, level = 0) {
 
             if (save && newName && newName !== itemName) {
                 try {
-                    // Logic aman untuk replace nama di akhir path
                     const newPath = itemPath.substring(0, itemPath.lastIndexOf(itemName)) + newName;
                     await RenameItem(itemPath, newPath);
                     
-                    // Update tab jika file yang di-rename sedang terbuka
                     if (activeFilePath === itemPath) {
                         activeFilePath = newPath;
                         const tab = tabs.find(t => t.path === itemPath);
@@ -281,16 +278,15 @@ function createSidebarItem(item, level = 0) {
             }
         };
 
-        input.addEventListener('blur', () => finishRename(true)); // Save saat klik di luar
+        input.addEventListener('blur', () => finishRename(true));
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') finishRename(true);
             if (e.key === 'Escape') finishRename(false);
-            e.stopPropagation(); // Mencegah shortcut Wails/Editor terpicu
+            e.stopPropagation(); 
         });
         input.addEventListener('click', (e) => e.stopPropagation());
     });
 
-    // -- LOGIKA HAPUS --
     div.querySelector('.btn-del').addEventListener('click', async (e) => {
         e.stopPropagation();
         if (confirm(`Yakin ingin menghapus ${itemName} secara permanen?`)) {
@@ -301,7 +297,6 @@ function createSidebarItem(item, level = 0) {
         }
     });
 
-    // -- LOGIKA FOLDER EXPAND/COLLAPSE --
     if (isDir) {
         const subContainer = document.createElement('div');
         subContainer.className = 'hidden flex-col border-l border-[#444]/40 pl-3 ml-3 my-0.5';
@@ -327,6 +322,8 @@ function createSidebarItem(item, level = 0) {
         
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
+            if (e.target.tagName === 'INPUT') return; // FIX: Cegah folder buka/tutup saat input rename di klik
+
             if (subContainer.classList.contains('hidden')) {
                 await openFolder();
             } else { 
@@ -338,9 +335,10 @@ function createSidebarItem(item, level = 0) {
             openFolder();
         }
     } else {
-        // -- LOGIKA BUKA FILE --
         div.addEventListener('click', async (e) => {
             e.stopPropagation();
+            if (e.target.tagName === 'INPUT') return; // FIX: Cegah file terbuka saat input rename di klik
+            
             if (activeFilePath === itemPath) return;
             try { openTab(itemPath, await ReadFileByPath(itemPath)); } 
             catch (err) { logToTerminal("System", "Gagal membuka file: " + String(err), true); }
@@ -357,7 +355,7 @@ async function loadFolderData(basePath) {
         document.getElementById('resizer').classList.remove('hidden');
         document.getElementById('terminal-panel').classList.remove('hidden');
         document.getElementById('folder-name').innerText = basePath.split(/[/\\]/).pop();
-        expandedFolders.clear(); // Bersihkan memori path saat ganti base folder
+        expandedFolders.clear(); 
         await refreshSidebar();
     } catch (err) { logToTerminal("System", "Gagal meload folder.", true); }
 }
@@ -408,7 +406,6 @@ document.getElementById('btn-close-terminal').addEventListener('click', () => do
 let terminalState = 'NORMAL'; 
 let setupData = { name: '', email: '', remote: '' };
 
-// FIX: Set status busy untuk input saat proses background berjalan
 termInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
         if (termInput.disabled) return; 
@@ -436,7 +433,6 @@ termInput.addEventListener('keydown', async (e) => {
             return;
         }
 
-        // Logic State Machine (Git Config / Reset)
         termInput.value = '';
         termOutput.innerHTML += `<span class="text-yellow-400">${cmd}</span>\n`; 
 

@@ -10,6 +10,8 @@ export function CreateNewFolder(arg1:string):Promise<void>;
 
 export function DeleteItem(arg1:string):Promise<void>;
 
+export function GetAppVersion():Promise<string>;
+
 export function GetFolderContents(arg1:string):Promise<Array<main.FileItem>>;
 
 export function GetGitStatus(arg1:string):Promise<Record<string, string>>;
