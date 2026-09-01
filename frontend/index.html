@@ -61,16 +61,28 @@
         
         <!-- Sidebar Explorer -->
         <div id="sidebar" class="w-64 bg-[#252526] flex flex-col hidden shrink-0 flex-none relative">
-            <div class="px-4 py-2 text-xs font-bold text-gray-400 border-b border-[#333333] flex justify-between items-center group">
+            <div class="px-4 py-2 text-xs font-bold text-gray-400 border-b border-[#333333] flex justify-between items-center group shrink-0">
                 <span id="folder-name" class="truncate uppercase tracking-wider">EXPLORER</span>
                 <div class="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#252526] pl-2">
                     <button id="btn-new-file" title="New File" class="hover:text-blue-400 transition text-sm">📄+</button>
                     <button id="btn-new-folder" title="New Folder" class="hover:text-blue-400 transition text-sm">📁+</button>
                     <button id="btn-refresh" title="Refresh" class="hover:text-blue-400 transition text-sm">🔄</button>
-                    <!-- Tombol baru untuk Close Project -->
                     <button id="btn-close-project" title="Close Project" class="hover:text-red-500 transition text-sm ml-1 font-bold">✖</button>
                 </div>
             </div>
+            
+            <!-- TAMBAHAN: Search Box -->
+            <div class="p-2 border-b border-[#333333] shrink-0">
+                <div class="flex items-center bg-[#1e1e1e] border border-[#444] rounded px-2 py-1 focus-within:border-blue-500 transition-colors">
+                    <span class="text-gray-500 text-xs mr-2">🔍</span>
+                    <input type="text" id="global-search-input" class="bg-transparent text-xs text-white w-full focus:outline-none placeholder-gray-600" placeholder="Cari teks di project (Enter)">
+                </div>
+            </div>
+
+            <!-- TAMBAHAN: Container Hasil Pencarian (Awalnya disembunyikan) -->
+            <div id="search-results" class="overflow-y-auto flex-1 text-sm hidden flex-col"></div>
+
+            <!-- FILE LIST EXISTING -->
             <div id="file-list" class="overflow-y-auto flex-1 py-2 text-sm"></div>
         </div>
 
@@ -90,7 +102,7 @@
                         
                         <!-- Header Title -->
                         <div class="flex items-center space-x-3 mb-6 border-b border-[#333] pb-4">
-                            <div class="w-12 h-12 bg-blue-600/20 border border-blue-500/40 rounded-lg flex items-center justify-center text-blue-400 text-2xl font-bold">⚡</div>
+                            <div class="w-12 h-12 bg-blue-600/20 border border-blue-500/40 rounded-lg flex items-center justify-center text-blue-400 text-2xl font-bold"><img src="appicon.png" class="w-6 h-6 object-contain"></div>
                             <div>
                                 <h1 class="text-xl font-bold text-white tracking-wide">NgAppID Code Editor</h1>
                                 <p class="text-xs text-gray-400">Lingkungan pengembangan modern, ringan, dan cepat.</p>

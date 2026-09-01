@@ -36,4 +36,6 @@ export function RunCommand(arg1:string,arg2:string):Promise<string>;
 
 export function SaveFile(arg1:string,arg2:string):Promise<string>;
 
+export function SearchInFiles(arg1:string,arg2:string):Promise<Array<main.SearchResult>>;
+
 export function SetGitConfig(arg1:string,arg2:string):Promise<void>;

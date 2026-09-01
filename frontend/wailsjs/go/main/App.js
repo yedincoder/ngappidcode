@@ -70,6 +70,10 @@ export function SaveFile(arg1, arg2) {
   return window['go']['main']['App']['SaveFile'](arg1, arg2);
 }
 
+export function SearchInFiles(arg1, arg2) {
+  return window['go']['main']['App']['SearchInFiles'](arg1, arg2);
+}
+
 export function SetGitConfig(arg1, arg2) {
   return window['go']['main']['App']['SetGitConfig'](arg1, arg2);
 }

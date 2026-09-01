@@ -33,7 +33,7 @@ type FolderInfo struct {
 	Files    []FileItem `json:"files"`
 }
 
-const AppVersion = "v1.0.0"
+const AppVersion = "v1.0.1"
 
 func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
@@ -252,4 +252,64 @@ func (a *App) RunCommand(dir string, command string) (string, error) {
 		return "", fmt.Errorf("%s", string(out))
 	}
 	return string(out), nil
+}
+
+// --- GLOBAL SEARCH ---
+type SearchResult struct {
+	Path       string `json:"path"`
+	LineNumber int    `json:"line_number"`
+	LineText   string `json:"line_text"`
+}
+
+func (a *App) SearchInFiles(folderPath string, keyword string) ([]SearchResult, error) {
+	var results []SearchResult
+	if folderPath == "" || keyword == "" {
+		return results, nil
+	}
+
+	err := filepath.WalkDir(folderPath, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // Lewati jika ada error permission
+		}
+		
+		// Abaikan folder berat/hidden agar pencarian tidak freeze
+		if d.IsDir() {
+			name := d.Name()
+			if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" || name == "dist" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Baca file
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		// Deteksi sederhana apakah ini file biner (mengandung null byte)
+		if strings.Contains(string(content), "\x00") {
+			return nil
+		}
+
+		// Cari keyword baris per baris
+		lines := strings.Split(string(content), "\n")
+		for i, line := range lines {
+			if strings.Contains(strings.ToLower(line), strings.ToLower(keyword)) {
+				results = append(results, SearchResult{
+					Path:       path,
+					LineNumber: i + 1,
+					LineText:   strings.TrimSpace(line),
+				})
+				
+				// Batasi hasil dari satu file agar memori tidak bengkak
+				if len(results) > 200 {
+					return nil 
+				}
+			}
+		}
+		return nil
+	})
+
+	return results, err
 }

@@ -64,6 +64,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class SearchResult {
+	    path: string;
+	    line_number: number;
+	    line_text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.line_number = source["line_number"];
+	        this.line_text = source["line_text"];
+	    }
+	}
 
 }
 

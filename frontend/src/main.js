@@ -2,7 +2,8 @@ import {
     OpenFile, SaveFile, OpenFolderDialog, ReadFileByPath, 
     GitPull, GitCommitAndPush, GetFolderContents,
     CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
-    SetGitConfig, AddGitRemote, GitReset, GetAppVersion
+    SetGitConfig, AddGitRemote, GitReset, GetAppVersion,
+    SearchInFiles // <- Tambahan import Search
 } from '../wailsjs/go/main/App';
 
 GetAppVersion().then(version => {
@@ -386,17 +387,26 @@ document.getElementById('btn-open').addEventListener('click', async () => {
 document.getElementById('btn-save').addEventListener('click', saveActiveFile);
 document.getElementById('btn-refresh').addEventListener('click', refreshSidebar);
 
+// FIX PATH SEPARATOR UNTUK NEW FILE/FOLDER:
 document.getElementById('btn-new-file').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat file!", true);
     const name = prompt("Nama file baru:");
-    if (name) { await CreateNewFile(`${currentFolderPath}/${name}`); refreshSidebar(); }
+    if (name) { 
+        const separator = currentFolderPath.includes('\\') ? '\\' : '/';
+        await CreateNewFile(`${currentFolderPath}${separator}${name}`); 
+        refreshSidebar(); 
+    }
 });
 document.getElementById('btn-new-folder').addEventListener('click', async (e) => {
     e.stopPropagation();
     if (!currentFolderPath) return logToTerminal("System", "Buka folder project dulu untuk buat folder!", true);
     const name = prompt("Nama folder baru:");
-    if (name) { await CreateNewFolder(`${currentFolderPath}/${name}`); refreshSidebar(); }
+    if (name) { 
+        const separator = currentFolderPath.includes('\\') ? '\\' : '/';
+        await CreateNewFolder(`${currentFolderPath}${separator}${name}`); 
+        refreshSidebar(); 
+    }
 });
 
 window.addEventListener('keydown', (e) => {
@@ -432,12 +442,12 @@ termInput.addEventListener('keydown', async (e) => {
             termOutput.innerHTML += `\n<span class="text-green-400">❯ ${cmd}</span>\n`;
             
             if (cmdLower === 'help') {
-                termOutput.innerHTML += `<span class="text-blue-300 font-bold">Perintah bawaan NgAppID Editor:</span>\n`;
+                termOutput.innerHTML += `<span class="text-blue-300 font-bold">Perintah bawaan NgAppID Code Editor:</span>\n`;
                 termOutput.innerHTML += `<span class="text-green-300">help</span>      <span class="text-gray-400">- Menampilkan menu bantuan ini</span>\n`;
                 termOutput.innerHTML += `<span class="text-green-300">about</span>     <span class="text-gray-400">- Informasi tentang aplikasi dan developer</span>\n`;
                 termOutput.innerHTML += `<span class="text-green-300">clear</span>     <span class="text-gray-400">- Membersihkan layar terminal</span>\n`;
                 termOutput.innerHTML += `<span class="text-green-300">version</span>   <span class="text-gray-400">- Menampilkan versi aplikasi saat ini</span>\n`;
-                termOutput.innerHTML += `<span class="text-red-400">ungit</span>       <span class="text-gray-400">- Menghapus konfigurasi Git (.git) dari project</span>\n`;
+                termOutput.innerHTML += `<span class="text-green-300">support / donasi / traktir</span>   <span class="text-gray-400">- Menampilkan dukungan rekan-rekan</span>\n`;
                 termOutput.innerHTML += `<span class="text-gray-500">----------------------------------------------------</span>\n`;
                 termOutput.innerHTML += `<span class="text-gray-400">💡 Kamu juga bisa menjalankan perintah OS bawaan (npm, git, go, dir, ls, dll).</span>\n`;
                 termOutput.scrollTop = termOutput.scrollHeight;
@@ -449,8 +459,8 @@ termInput.addEventListener('keydown', async (e) => {
                 termOutput.innerHTML += `<span class="text-yellow-400 font-bold">👨‍💻 Developer Info:</span>\n`;
                 termOutput.innerHTML += `<span class="text-gray-300">Author  : Yedi Nurwali (YedinCoder)</span>\n`;
                 termOutput.innerHTML += `<span class="text-gray-300">Team    : NgAppID</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Company : PT. YEDIN DIGITAL MANDIRI</span>\n`;
-                termOutput.innerHTML += `<span class="text-gray-300">Website : <a href="https://yedin.my.id" target="_blank" class="text-blue-400 hover:underline">yedin.my.id</a> | <a href="https://ngappi.com" target="_blank" class="text-blue-400 hover:underline">ngappi.com</a></span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Website : <a href="https://yedin.my.id" target="_blank" class="text-blue-400 hover:underline">yedin.my.id</a> | <a href="https://dev.ngappid.com" target="_blank" class="text-blue-400 hover:underline">dev.ngappid.com</a> | <a href="https://ngappid.com" target="_blank" class="text-blue-400 hover:underline">ngappid.com</a></span>\n`;
+                termOutput.innerHTML += `<span class="text-gray-300">Kontak  : 081802161315</span>\n`;
                 termOutput.innerHTML += `<span class="text-gray-300">Email   : yedincoder@gmail.com</span>\n`;
                 termOutput.scrollTop = termOutput.scrollHeight;
                 return;
@@ -466,6 +476,7 @@ termInput.addEventListener('keydown', async (e) => {
                     termOutput.scrollTop = termOutput.scrollHeight;
                     return;
                 }
+            // --- END CUSTOM COMMANDS ---
                 terminalState = 'AWAITING_UNGIT_CONFIRM';
                 termOutput.innerHTML += `<span class="text-red-400 font-bold">⚠️ PERINGATAN: Ini akan menghapus folder .git beserta SEMUA history commit lokal!</span>\n`;
                 termOutput.innerHTML += `<span class="text-yellow-400">Yakin ingin melanjutkan? (ketik 'y' untuk Ya, 'n' untuk Batal): </span>`;
@@ -474,6 +485,31 @@ termInput.addEventListener('keydown', async (e) => {
             }
             // --- END CUSTOM COMMANDS ---
 
+			// 👇 BLOK SUPPORT / DONASI (POLOS & NORMAL) 👇
+            else if (cmdLower === 'support' || cmdLower === 'donasi' || cmdLower === 'traktir') {
+                termOutput.innerHTML += `
+<div class="flex flex-row gap-4 my-2 items-start">
+    <!-- Kiri: QRIS -->
+    <img src="qris.png" alt="QRIS Donasi" class="w-20 h-20 object-contain rounded border border-[#444] bg-white p-1">
+    
+    <!-- Kanan: Teks Normal -->
+    <div class="flex flex-col text-gray-300 text-sm">
+	<span class="text-blue-400 font-bold">☕ Dukung Pengembangan NgAppID Code Editor</span>\n
+	<span class="text-gray-300">Jika aplikasi ini membantu pekerjaanmu, traktir kopi developer-nya yuk!</span>\n
+        <span class="text-yellow-400 font-bold mb-1">💳 Konfirmasi WA: 081802161315</span>
+        <span class="text-green-400 italic">Terima kasih banyak atas dukunganmu! Setiap donasi sangat berarti untuk kelancaran riset dan pengembangan NgAppID selanjutnya. 🙏</span>
+    </div>
+</div>\n`;
+                
+                setTimeout(() => {
+                    termOutput.scrollTop = termOutput.scrollHeight;
+                }, 150);
+                
+                return; 
+            }
+            // 👆 BATAS BLOK TAMBAHAN 👆
+			
+			
             // Eksekusi OS Command standar jika bukan perintah bawaan
             termInput.disabled = true;
             termInput.placeholder = "⏳ Memproses...";
@@ -616,7 +652,7 @@ btnGitPush.addEventListener('click', () => {
 document.getElementById('btn-cancel-commit').addEventListener('click', () => { commitModal.classList.add('hidden'); commitInput.value = ''; });
 
 document.getElementById('btn-submit-commit').addEventListener('click', async () => {
-    const message = commitInput.value.trim() || "Update files via NgAppID Editor";
+    const message = commitInput.value.trim() || "Update files via NgAppID Code Editor";
     commitModal.classList.add('hidden'); commitInput.value = '';
     const originalText = btnGitPush.innerText;
     btnGitPush.innerText = "⏳ Pushing...";
@@ -805,3 +841,114 @@ window.loadFolderData = async function(basePath) {
     return originalLoadFolderData(basePath);
 };
 
+
+// ==========================================
+// TAMBAHAN: GLOBAL SEARCH LOGIC
+// ==========================================
+const globalSearchInput = document.getElementById('global-search-input');
+const searchResultsContainer = document.getElementById('search-results');
+const fileListContainer = document.getElementById('file-list');
+
+if (globalSearchInput) {
+    globalSearchInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') {
+            const keyword = globalSearchInput.value.trim();
+            
+            // Kembalikan ke mode explorer jika input kosong
+            if (!keyword) {
+                searchResultsContainer.classList.add('hidden');
+                fileListContainer.classList.remove('hidden');
+                return;
+            }
+
+            if (!currentFolderPath) {
+                logToTerminal("Search", "Buka folder project dulu sebelum mencari!", true);
+                return;
+            }
+
+            // Mode Loading
+            fileListContainer.classList.add('hidden');
+            searchResultsContainer.classList.remove('hidden');
+            searchResultsContainer.innerHTML = '<div class="p-4 text-center text-xs text-blue-400 animate-pulse">⏳ Sedang mencari...</div>';
+
+            try {
+                const results = await SearchInFiles(currentFolderPath, keyword);
+                renderSearchResults(results, keyword);
+            } catch (err) {
+                searchResultsContainer.innerHTML = `<div class="p-4 text-center text-xs text-red-400">Gagal mencari: ${err}</div>`;
+            }
+        }
+    });
+}
+
+function renderSearchResults(results, keyword) {
+    searchResultsContainer.innerHTML = ''; // Bersihkan loading state
+
+    // Header Panel Pencarian
+    const headerDiv = document.createElement('div');
+    headerDiv.className = "flex justify-between items-center px-3 py-1.5 bg-[#2d2d2d] border-b border-[#444] text-[10px] font-bold text-gray-400 uppercase tracking-wider sticky top-0 z-10 shadow-md";
+    headerDiv.innerHTML = `<span>${results ? results.length : 0} HASIL DITEMUKAN</span>`;
+    
+    // Tombol close pencarian
+    const closeBtn = document.createElement('button');
+    closeBtn.className = "hover:text-red-400 transition px-1 text-xs cursor-pointer";
+    closeBtn.innerText = "✖";
+    closeBtn.onclick = () => {
+        globalSearchInput.value = '';
+        searchResultsContainer.classList.add('hidden');
+        fileListContainer.classList.remove('hidden');
+    };
+    headerDiv.appendChild(closeBtn);
+    searchResultsContainer.appendChild(headerDiv);
+
+    if (!results || results.length === 0) {
+        searchResultsContainer.innerHTML += '<div class="p-4 text-center text-xs text-gray-500 italic">Tidak ada teks yang cocok.</div>';
+        return;
+    }
+
+    // Tampilkan list hasil
+    results.forEach(res => {
+        const fileName = res.path.split(/[/\\]/).pop();
+        const resultItem = document.createElement('div');
+        resultItem.className = "py-2 px-3 border-b border-[#333]/50 hover:bg-[#37373d] cursor-pointer group";
+        
+        // Buat highlight teks yang dicari
+        const regex = new RegExp(`(${keyword})`, 'gi');
+        const highlightedText = res.line_text
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;") // Cegah XSS / tag HTML bocor
+            .replace(regex, `<span class="bg-blue-500/40 text-blue-100 rounded px-0.5">$1</span>`);
+
+        resultItem.innerHTML = `
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-semibold text-blue-300 truncate mr-2" title="${res.path}">📄 ${fileName}</span>
+                <span class="text-[10px] text-gray-500 bg-[#1e1e1e] px-1.5 py-0.5 rounded border border-[#444]">Baris ${res.line_number}</span>
+            </div>
+            <div class="text-[11px] text-gray-400 font-mono truncate group-hover:text-gray-300">
+                ${highlightedText.trim()}
+            </div>
+        `;
+
+        // Event Klik: Buka file dan scroll ke baris
+        resultItem.addEventListener('click', async () => {
+            try {
+                if (activeFilePath !== res.path) {
+                    const content = await ReadFileByPath(res.path);
+                    openTab(res.path, content);
+                }
+                
+                // Panggil API Monaco untuk scroll dan menempatkan kursor ke baris yang ditemukan
+                setTimeout(() => {
+                    if (editorInstance) {
+                        editorInstance.revealLineInCenter(res.line_number);
+                        editorInstance.setPosition({ lineNumber: res.line_number, column: 1 });
+                        editorInstance.focus();
+                    }
+                }, 100);
+            } catch (err) {
+                logToTerminal("System", "Gagal membuka file dari pencarian: " + err, true);
+            }
+        });
+
+        searchResultsContainer.appendChild(resultItem);
+    });
+}
