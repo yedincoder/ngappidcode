@@ -8,5 +8,5 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": { "name": "NgAppID", "email": "dev@ngappid.com" },
-  "info": { "companyName": "NgAppID", "productName": "NgAppIDCode", "productVersion": "1.0.0", "copyright": "Copyright 2026 NgAppID" }
+  "info": { "companyName": "NgAppID", "productName": "NgAppIDCode", "productVersion": "1.0.1", "copyright": "Copyright 2026 NgAppID" }
 }
