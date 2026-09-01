@@ -37,7 +37,7 @@ const AppVersion = "v1.0.0"
 
 func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
-func (a *App) GetAppVersion() string {return AppVersion}
+func (a *App) GetAppVersion() string { return AppVersion }
 
 // --- FILE MANAGEMENT ---
 func (a *App) OpenFile() (FileInfo, error) {
@@ -103,18 +103,18 @@ func (a *App) GetFolderContents(folderPath string) ([]FileItem, error) {
 
 // --- GIT SETUP & CONFIG ---
 func (a *App) SetGitConfig(name string, email string) error {
-	err := exec.Command("git", "config", "--global", "user.name", name).Run()
+	err := HiddenCommand("git", "config", "--global", "user.name", name).Run()
 	if err != nil { return err }
-	return exec.Command("git", "config", "--global", "user.email", email).Run()
+	return HiddenCommand("git", "config", "--global", "user.email", email).Run()
 }
 
 func (a *App) AddGitRemote(projectPath string, remoteUrl string) error {
 	if projectPath == "" { return nil }
-	cmdSet := exec.Command("git", "remote", "set-url", "origin", remoteUrl)
+	cmdSet := HiddenCommand("git", "remote", "set-url", "origin", remoteUrl)
 	cmdSet.Dir = projectPath
 	err := cmdSet.Run()
 	if err != nil {
-		cmdAdd := exec.Command("git", "remote", "add", "origin", remoteUrl)
+		cmdAdd := HiddenCommand("git", "remote", "add", "origin", remoteUrl)
 		cmdAdd.Dir = projectPath
 		return cmdAdd.Run()
 	}
@@ -123,7 +123,7 @@ func (a *App) AddGitRemote(projectPath string, remoteUrl string) error {
 
 func (a *App) GitInit(projectPath string) (string, error) {
 	if projectPath == "" { return "Error: Path kosong", nil }
-	cmd := exec.Command("git", "init")
+	cmd := HiddenCommand("git", "init")
 	cmd.Dir = projectPath
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -135,7 +135,7 @@ func (a *App) GitInit(projectPath string) (string, error) {
 // --- GIT ACTION (PULL, PUSH, RESET) ---
 func (a *App) GitPull(projectPath string) (string, error) {
 	if projectPath == "" { return "", fmt.Errorf("Error: Buka folder project dulu!") }
-	cmd := exec.Command("git", "pull", "origin", "main")
+	cmd := HiddenCommand("git", "pull", "origin", "main")
 	cmd.Dir = projectPath
 	out, err := cmd.CombinedOutput()
 	if err != nil { return "", fmt.Errorf("Git Pull Error:\n%s", string(out)) }
@@ -149,12 +149,12 @@ func (a *App) GitCommitAndPush(projectPath string, message string) (string, erro
 	}
 
 	// Step 1: Auto-Init kalau belum ada
-	initCmd := exec.Command("git", "init")
+	initCmd := HiddenCommand("git", "init")
 	initCmd.Dir = projectPath
-	initCmd.Run() // Fix: Eksekusi command dengan .Run()
+	initCmd.Run()
 
 	// Step 2: Otomatis Add semua file yang berubah
-	cmdAdd := exec.Command("git", "add", ".")
+	cmdAdd := HiddenCommand("git", "add", ".")
 	cmdAdd.Dir = projectPath
 	if outAdd, err := cmdAdd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("Git Add Error:\n%s", string(outAdd))
@@ -164,12 +164,12 @@ func (a *App) GitCommitAndPush(projectPath string, message string) (string, erro
 	if message == "" {
 		message = "Update via NgAppID Code Editor"
 	}
-	cmdCommit := exec.Command("git", "commit", "-m", message)
+	cmdCommit := HiddenCommand("git", "commit", "-m", message)
 	cmdCommit.Dir = projectPath
 	outCommit, _ := cmdCommit.CombinedOutput() 
 
 	// Step 4: Push ke remote origin main
-	cmdPush := exec.Command("git", "push", "-u", "origin", "main")
+	cmdPush := HiddenCommand("git", "push", "-u", "origin", "main")
 	cmdPush.Dir = projectPath
 	outPush, errPush := cmdPush.CombinedOutput()
 	
@@ -187,20 +187,20 @@ func (a *App) GitReset(projectPath string) (string, error) {
 	}
 	
 	// Step 1: Pastikan sudah ada repo git
-	initCmd := exec.Command("git", "init")
+	initCmd := HiddenCommand("git", "init")
 	initCmd.Dir = projectPath
-	initCmd.Run() // Fix: Eksekusi command dengan .Run()
+	initCmd.Run() 
 
 	// Step 2: Cek apakah sudah ada commit (HEAD)
-	checkHead := exec.Command("git", "rev-parse", "HEAD")
+	checkHead := HiddenCommand("git", "rev-parse", "HEAD")
 	checkHead.Dir = projectPath
 	if err := checkHead.Run(); err != nil {
 		// Kalau HEAD tidak ada, lakukan initial commit
-		addCmd := exec.Command("git", "add", ".")
+		addCmd := HiddenCommand("git", "add", ".")
 		addCmd.Dir = projectPath
-		addCmd.Run() // Fix: Eksekusi command dengan .Run()
+		addCmd.Run()
 
-		commitCmd := exec.Command("git", "commit", "--allow-empty", "-m", "Initial commit by NgAppID Code Editor")
+		commitCmd := HiddenCommand("git", "commit", "--allow-empty", "-m", "Initial commit by NgAppID Code Editor")
 		commitCmd.Dir = projectPath
 		outCommit, errCommit := commitCmd.CombinedOutput()
 		if errCommit != nil {
@@ -209,11 +209,10 @@ func (a *App) GitReset(projectPath string) (string, error) {
 	}
 
 	// Step 3: Jalankan Git Reset
-	cmd := exec.Command("git", "reset", "--hard", "HEAD")
+	cmd := HiddenCommand("git", "reset", "--hard", "HEAD")
 	cmd.Dir = projectPath
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// Menangkap pesan asli dari git agar dilempar ke Wails
 		return "", fmt.Errorf("Git Reset Error:\n%s", string(out))
 	}
 	
@@ -221,7 +220,7 @@ func (a *App) GitReset(projectPath string) (string, error) {
 }
 
 func (a *App) GetGitStatus(projectPath string) (map[string]string, error) {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := HiddenCommand("git", "status", "--porcelain")
 	cmd.Dir = projectPath
 	out, err := cmd.Output()
 	statusMap := make(map[string]string)
@@ -243,9 +242,9 @@ func (a *App) GetGitStatus(projectPath string) (map[string]string, error) {
 func (a *App) RunCommand(dir string, command string) (string, error) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("cmd", "/c", command)
+		cmd = HiddenCommand("cmd", "/c", command)
 	} else {
-		cmd = exec.Command("sh", "-c", command)
+		cmd = HiddenCommand("sh", "-c", command)
 	}
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
