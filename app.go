@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	
 	"github.com/jlaffaye/ftp" // <-- Library FTP
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -408,4 +409,82 @@ func (a *App) FTPDisconnect() string {
 		return "Koneksi FTP diputus."
 	}
 	return "Tidak ada koneksi FTP yang aktif."
+}
+
+// --- LIVE TERMINAL STREAMING ---
+var currentLiveCmd *exec.Cmd
+
+func (a *App) RunLiveCommand(dir string, command string) error {
+	if currentLiveCmd != nil && currentLiveCmd.Process != nil {
+		if runtime.GOOS == "windows" {
+			exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprint(currentLiveCmd.Process.Pid)).Run()
+		} else {
+			currentLiveCmd.Process.Kill()
+		}
+	}
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/c", command)
+	} else {
+		cmd = exec.Command("sh", "-c", command)
+	}
+	
+	cmd.Dir = dir
+	HideConsoleWindow(cmd)
+
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+
+	currentLiveCmd = cmd
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	// FIX: Baca raw bytes langsung! Gak nunggu karakter Enter (\n) lagi!
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := stdout.Read(buf)
+			if n > 0 {
+				wailsRuntime.EventsEmit(a.ctx, "terminal-log", string(buf[:n]))
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	go func() {
+		buf := make([]byte, 1024)
+		for {
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				wailsRuntime.EventsEmit(a.ctx, "terminal-log", string(buf[:n]))
+			}
+			if err != nil {
+				break
+			}
+		}
+	}()
+
+	go func() {
+		cmd.Wait()
+		wailsRuntime.EventsEmit(a.ctx, "terminal-done", "\n[Proses Selesai / Dihentikan]\n")
+	}()
+
+	return nil
+}
+
+// Fungsi tambahan untuk mematikan server dari UI (Tombol Stop)
+func (a *App) StopLiveCommand() {
+	if currentLiveCmd != nil && currentLiveCmd.Process != nil {
+		if runtime.GOOS == "windows" {
+			exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprint(currentLiveCmd.Process.Pid)).Run()
+		} else {
+			currentLiveCmd.Process.Kill()
+		}
+		currentLiveCmd = nil
+	}
 }
