@@ -246,17 +246,33 @@ func (a *App) GetGitStatus(projectPath string) (map[string]string, error) {
 // --- TERMINAL & UTILS ---
 func (a *App) RunCommand(dir string, command string) (string, error) {
 	var cmd *exec.Cmd
+	
+	// FIX BUG SPASI PADA TERMINAL:
+	// Memaksa OS menjalankan seluruh string command sebagai satu kesatuan utuh
+	// agar tanda kutip ganda (") seperti pada `git commit -m "Pesan"` tidak dipecah berantakan.
 	if runtime.GOOS == "windows" {
-		cmd = HiddenCommand("cmd", "/c", command)
+		cmd = exec.Command("cmd", "/c", command) // Ubah dari HiddenCommand jadi exec.Command biasa
 	} else {
-		cmd = HiddenCommand("sh", "-c", command)
+		cmd = exec.Command("sh", "-c", command)
 	}
+	
+	// Sembunyikan window CMD (Hanya berlaku untuk Windows)
+	HideConsoleWindow(cmd)
+
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s", string(out))
 	}
 	return string(out), nil
+}
+
+// Tambahkan fungsi utilitas ini tepat di bawah RunCommand untuk menyembunyikan window CMD hitam yang suka muncul di Windows
+func HideConsoleWindow(cmd *exec.Cmd) {
+	if runtime.GOOS == "windows" {
+		// Menggunakan SysProcAttr khusus windows untuk menyembunyikan GUI terminal bawaan OS
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	}
 }
 
 // --- GLOBAL SEARCH ---
