@@ -118,7 +118,7 @@
                 <span>🔀 Git ▾</span>
             </button>
             <div id="git-dropdown"
-                class="absolute left-0 mt-1 w-40 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                class="absolute left-0 mt-1 w-40 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-[60] flex flex-col py-1">
                 <button id="btn-git-setup" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-blue-600 dark:text-blue-300 transition">🔧 Git Setup</button>
                 <button id="btn-git-init" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-yellow-600 dark:text-yellow-300 transition">⚙ Git Init</button>
                 <button id="btn-git-push" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-green-600 dark:text-green-300 transition">⬆ Git Push</button>
@@ -136,7 +136,7 @@
                 <span>🌐 FTP ▾</span>
             </button>
             <div id="ftp-dropdown"
-                class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-[60] flex flex-col py-1">
                 <button id="btn-ftp-connect" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition">🔌 Login & Koneksikan</button>
                 <button id="btn-ftp-open" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition">📂 Buka File Server</button>
                 <button id="btn-ftp-disconnect" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-red-500 hover:text-red-600 transition border-t border-gray-200 dark:border-[#444]">❌ Putuskan Koneksi</button>
@@ -149,14 +149,23 @@
                 <span>⚙ Settings ▾</span>
             </button>
             <div id="settings-dropdown"
-                class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-50 flex flex-col py-1">
+                class="absolute right-0 mt-1 w-48 bg-white dark:bg-[#252526] border border-gray-300 dark:border-[#444] rounded shadow-lg hidden z-[60] flex flex-col py-1">
+				
+				<!-- Menu Settings yang udah ada -->
                 <button id="btn-editor-settings" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition border-b border-gray-200 dark:border-[#444]">🎨 Tema & Font Editor</button>
-
-                <!-- TAMBAHAN: Tombol Cepat Word Wrap -->
-                <button id="btn-toggle-wordwrap" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition flex justify-between items-center">
+                <button id="btn-toggle-wordwrap" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-gray-700 dark:text-gray-300 transition flex justify-between items-center border-b border-gray-200 dark:border-[#444]">
                     <span>↩ Word Wrap</span>
                     <span id="wordwrap-status" class="text-[10px] font-bold bg-gray-200 dark:bg-[#1e1e1e] px-1.5 py-0.5 rounded text-gray-500">OFF</span>
                 </button>
+
+                <!-- TAMBAHAN: Menu About & Support -->
+                <button id="btn-about" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-blue-600 dark:text-blue-400 transition flex items-center gap-1">
+                    <span>ℹ️ About NgAppID</span>
+                </button>
+                <button id="btn-support" class="text-left px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-[#37373d] text-xs text-yellow-600 dark:text-yellow-400 transition flex items-center gap-1">
+                    <span>☕ Support</span>
+                </button>
+				
             </div>
         </div>
 
@@ -209,29 +218,31 @@
             <div id="editor"
                 class="flex-1 w-full relative border-b border-gray-300 dark:border-[#333333] overflow-hidden">
                 <!-- Welcome Screen Dashboard -->
-                <div id="welcome-screen"
-                    class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-gray-600 dark:text-gray-300 z-50 overflow-y-auto p-4 transition-colors duration-200">
-                    <div
-                        class="max-w-lg w-full p-8 bg-gray-50 dark:bg-[#252526] border border-gray-200 dark:border-[#333333] rounded-xl shadow-2xl flex flex-col">
+<div id="welcome-screen"
+    class="absolute inset-0 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-gray-600 dark:text-gray-300 z-50 overflow-y-auto p-4 transition-colors duration-200">
+    <div class="max-w-4xl w-full p-8 bg-gray-50 dark:bg-[#252526] border border-gray-200 dark:border-[#333333] rounded-xl shadow-2xl flex flex-col">
 
-                        <!-- Header Title -->
-                        <div class="flex items-center space-x-3 mb-6 border-b border-gray-200 dark:border-[#333] pb-4">
-                            <div
-                                class="w-12 h-12 bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold">
-                                <img src="appicon.png" class="w-6 h-6 object-contain"></div>
-                            <div>
-                                <h1 class="text-xl font-bold text-gray-800 dark:text-white tracking-wide">NgAppID Code
-                                    Editor</h1>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Lingkungan pengembangan modern,
-                                    ringan, dan cepat.</p>
-                            </div>
-                        </div>
+        <!-- Header Title -->
+        <div class="flex items-center space-x-3 mb-6 border-b border-gray-200 dark:border-[#333] pb-4">
+            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold">
+                <img src="appicon.png" class="w-10 h-10 object-contain">
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-gray-800 dark:text-white tracking-wide">NgAppID Code Editor</h1>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Lingkungan pengembangan modern, ringan, dan cepat.</p>
+            </div>
+        </div>
 
-                        <!-- Quick Actions Menu -->
-                        <div class="mb-6">
-                            <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
-                                Mulai Cepat</p>
-                            <div class="grid grid-cols-2 gap-2">
+        <!-- Layout 2 Kolom Sesuai Sketsa -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+            
+            <!-- KOLOM KIRI: Mulai Cepat & Mulai Project -->
+            <div class="flex flex-col space-y-6">
+                
+                <!-- Mulai Cepat -->
+                <div>
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">MULAI CEPAT</p>
+                    <div class="grid grid-cols-2 gap-2">
                                 <button id="w-btn-open-folder" class="flex items-center gap-3 p-3 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-sm transition cursor-pointer group text-left shadow-sm">
                                     <span class="text-xl">📁</span>
                                     <div>
@@ -247,20 +258,67 @@
                                     </div>
                                 </button>
                             </div>
-                        </div>
+                </div>
 
-                        <!-- Recent History Section -->
-                        <div>
-                            <div class="flex justify-between items-center mb-3">
-                                <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                    Recent Projects</p>
-                                <button id="w-btn-clear-history" class="text-[11px] text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition">Hapus Riwayat</button>
-                            </div>
-                            <div id="recent-history-container" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></div>
-                        </div>
-
+                <!-- Mulai Project (Auto Setup) -->
+                <div>
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">MULAI PROJECT</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="nextjs">
+                            <span class="text-lg mb-1">▲</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 truncate w-full">Next.js</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="react">
+                            <span class="text-lg mb-1">⚛️</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 truncate w-full">React</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="vue">
+                            <span class="text-lg mb-1">🟩</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-green-500 truncate w-full">Vue.js</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="svelte">
+                            <span class="text-lg mb-1">🟠</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-orange-500 truncate w-full">Svelte</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="golang">
+                            <span class="text-lg mb-1">🐹</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-cyan-500 truncate w-full">Golang</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="python">
+                            <span class="text-lg mb-1">🐍</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-yellow-500 truncate w-full">Python</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="laravel">
+                            <span class="text-lg mb-1">🐘</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-red-500 truncate w-full">Laravel</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="ci4">
+                            <span class="text-lg mb-1">🔥</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-red-600 truncate w-full">CodeIgniter 4</span>
+                        </button>
+                        <button class="btn-create-project flex flex-col items-center justify-center p-2.5 bg-white dark:bg-[#2d2d2d] hover:bg-gray-100 dark:hover:bg-[#37373d] border border-gray-200 dark:border-[#444]/40 rounded-lg text-xs transition cursor-pointer group shadow-sm text-center" data-type="capacitor">
+                            <span class="text-lg mb-1">⚡</span>
+                            <span class="font-semibold text-gray-700 dark:text-gray-200 group-hover:text-blue-500 truncate w-full">Capacitor</span>
+                        </button>
                     </div>
                 </div>
+
+            </div>
+
+            <!-- KOLOM KANAN: Riwayat (Recent Projects Memanjang) -->
+            <div class="flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">RIWAYAT</p>
+                    <button id="w-btn-clear-history" class="text-[11px] text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition">Hapus Riwayat</button>
+                </div>
+                <!-- Wadah list riwayat memanjang ke bawah -->
+                <div id="recent-history-container" class="space-y-2 max-h-[360px] overflow-y-auto pr-1"></div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
             </div>
 
             <!-- Terminal Panel -->
@@ -356,7 +414,61 @@
             </div>
         </div>
     </div>
+<!-- Modal About -->
+    <div id="about-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl border border-gray-300 dark:border-[#333333] w-96 transform transition-all">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-[#333] pb-2">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-gray-200">ℹ️ About NgAppID</h3>
+                <button id="btn-close-about-x" class="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">✖</button>
+            </div>
+            
+            <div class="flex flex-col items-center text-center mb-4">
+                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-500/40 rounded-lg flex items-center justify-center mb-2">
+                    <img src="appicon.png" class="w-10 h-10 object-contain">
+                </div>
+                <h4 class="text-sm font-bold text-gray-800 dark:text-white">NgAppID Code Editor</h4>
+                <span class="text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-700 mt-1 font-bold" id="about-version-display">Version 1.0.2</span>
+            </div>
 
+            <div class="text-xs text-gray-600 dark:text-gray-300 space-y-1 mb-5 bg-gray-50 dark:bg-[#1e1e1e] p-3 rounded border border-gray-200 dark:border-[#444]">
+                <div class="grid grid-cols-[60px_1fr] gap-1.5">
+                    <div class="font-semibold text-gray-500">Author</div><div>: Yedin Coder</div>
+                    <div class="font-semibold text-gray-500">Team</div><div>: NgAppID Digital</div>
+                    <div class="font-semibold text-gray-500">Website</div><div>: <a href="https://yedin.my.id" target="_blank" class="text-blue-500 hover:underline">yedin.my.id</a> | <a href="https://dev.ngappid.com" target="_blank" class="text-blue-500 hover:underline">dev.ngappid.com</a> | <a href="https://ngappid.com" target="_blank" class="text-blue-500 hover:underline">ngappid.com</a></div>
+                    <div class="font-semibold text-gray-500">Repo</div><div>: <a href="https://github.com/yedincoder" target="_blank" class="text-blue-500 hover:underline">Github</a></div>
+                    <div class="font-semibold text-gray-500">Kontak</div><div>: 081802161315</div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 text-sm font-medium">
+                <button id="btn-close-about" class="px-4 py-1.5 bg-gray-200 dark:bg-[#333] hover:bg-gray-300 dark:hover:bg-[#444] text-gray-800 dark:text-gray-200 rounded transition shadow">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Support -->
+    <div id="support-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-[#252526] p-5 rounded-lg shadow-xl border border-gray-300 dark:border-[#333333] w-96 transform transition-all">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-200 dark:border-[#333] pb-2">
+                <h3 class="text-sm font-bold text-gray-800 dark:text-gray-200">☕ Support</h3>
+                <button id="btn-close-support-x" class="text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">✖</button>
+            </div>
+            
+            <div class="flex flex-col items-center text-center mb-5 mt-2">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4 px-2">Jika aplikasi ini membantumu, yuk traktir kopi developer biar makin semangat update fitur baru! 🙏</p>
+                
+                <img src="qris.png" alt="QRIS" class="w-32 h-32 object-contain bg-white rounded border border-gray-300 dark:border-[#444] p-1.5 mb-4">
+                
+                <div class="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400 px-3 py-2 rounded text-xs border border-yellow-200 dark:border-yellow-700/50 w-full text-center">
+                    <span class="font-bold">Konfirmasi WA: 081802161315</span>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 text-sm font-medium">
+                <button id="btn-close-support" class="px-4 py-1.5 bg-gray-200 dark:bg-[#333] hover:bg-gray-300 dark:hover:bg-[#444] text-gray-800 dark:text-gray-200 rounded transition shadow">Tutup</button>
+            </div>
+        </div>
+    </div>
     <script src="./src/main.js" type="module"></script>
 </body>
 

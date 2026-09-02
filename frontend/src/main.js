@@ -4,7 +4,8 @@ import {
     CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
     SetGitConfig, AddGitRemote, GitReset, GetAppVersion,
     SearchInFiles, ReplaceInFile,
-    FTPConnect, FTPReadFile, FTPSaveFile, FTPDisconnect
+    FTPConnect, FTPReadFile, FTPSaveFile, FTPDisconnect,
+	SelectDirectory, RunLiveCommand
 } from '../wailsjs/go/main/App';
 
 // --- APP VERSION & INITIAL CONFIG ---
@@ -1427,3 +1428,184 @@ window.CustomDialog = function (type, message, defaultValue = "") {
 window.CustomAlert = (msg) => CustomDialog('alert', msg);
 window.CustomConfirm = (msg) => CustomDialog('confirm', msg);
 window.CustomPrompt = (msg, def = "") => CustomDialog('prompt', msg, def);
+
+// ==========================================
+// MENU ABOUT & SUPPORT (MODAL SEPERTI SETTINGS)
+// ==========================================
+const aboutModal = document.getElementById('about-modal');
+const supportModal = document.getElementById('support-modal');
+
+// Buka About
+const btnAbout = document.getElementById('btn-about');
+if (btnAbout) {
+    btnAbout.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const settingsDropdown = document.getElementById('settings-dropdown');
+        if (settingsDropdown) settingsDropdown.classList.add('hidden');
+        
+        // Set versi dari app
+        const versionDisplay = document.getElementById('about-version-display');
+        if (versionDisplay) versionDisplay.innerText = `Version ${window.APP_VERSION || ''}`;
+        
+        if (aboutModal) aboutModal.classList.remove('hidden');
+    });
+}
+
+// Buka Support
+const btnSupport = document.getElementById('btn-support');
+if (btnSupport) {
+    btnSupport.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const settingsDropdown = document.getElementById('settings-dropdown');
+        if (settingsDropdown) settingsDropdown.classList.add('hidden');
+        
+        if (supportModal) supportModal.classList.remove('hidden');
+    });
+}
+
+// Fungsi Tutup About
+const closeAbout = () => { if (aboutModal) aboutModal.classList.add('hidden'); };
+if (document.getElementById('btn-close-about')) document.getElementById('btn-close-about').addEventListener('click', closeAbout);
+if (document.getElementById('btn-close-about-x')) document.getElementById('btn-close-about-x').addEventListener('click', closeAbout);
+
+// Fungsi Tutup Support
+const closeSupport = () => { if (supportModal) supportModal.classList.add('hidden'); };
+if (document.getElementById('btn-close-support')) document.getElementById('btn-close-support').addEventListener('click', closeSupport);
+if (document.getElementById('btn-close-support-x')) document.getElementById('btn-close-support-x').addEventListener('click', closeSupport);
+
+// ==========================================
+// FITUR BUAT PROJECT BARU & LIVE TERMINAL
+// ==========================================
+let pendingProjectLoad = "";
+
+window.runtime.EventsOn("terminal-log", (data) => {
+    const termOutput = document.getElementById('terminal-output');
+    if (termOutput) {
+        termOutput.innerHTML += `<span class="text-gray-600 dark:text-gray-400 font-mono text-[11px]">${data.replace(/\n/g, '<br>')}</span>`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+    }
+});
+
+window.runtime.EventsOn("terminal-done", (msg) => {
+    const termOutput = document.getElementById('terminal-output');
+    if (termOutput) {
+        termOutput.innerHTML += `<span class="text-green-600 dark:text-green-400 font-bold"><br>${msg}</span>\n`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+    }
+    
+    document.getElementById('terminal-input').disabled = false;
+    document.getElementById('terminal-input').placeholder = "Ketik perintah di sini...";
+
+    if (pendingProjectLoad) {
+        setTimeout(() => {
+            loadFolderData(pendingProjectLoad);
+            logToTerminal("System", "✔ Project berhasil dibuat dan dimuat ke workspace!");
+            pendingProjectLoad = ""; 
+        }, 1000);
+    }
+});
+
+document.querySelectorAll('.btn-create-project').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const type = btn.getAttribute('data-type');
+        
+        const projectName = await CustomPrompt("Masukkan nama project (tanpa spasi, gunakan huruf kecil):", `my-${type}-app`);
+        if (!projectName) return; 
+
+        await CustomAlert("Selanjutnya, pilih folder induk (tempat menyimpan project ini).\nContoh: Documents/Projects");
+        const parentDir = await SelectDirectory();
+        if (!parentDir) return; 
+
+        const panel = document.getElementById('terminal-panel');
+        const termOutput = document.getElementById('terminal-output');
+        const termInput = document.getElementById('terminal-input');
+        
+        panel.classList.remove('hidden');
+        termOutput.innerHTML += `\n<span class="text-blue-600 dark:text-blue-400 font-bold">❯ MEMPERSIAPKAN PROJECT: ${type.toUpperCase()}</span>\n`;
+        termOutput.innerHTML += `<span class="text-gray-500 dark:text-gray-400 text-xs">Lokasi: ${parentDir} | Nama: ${projectName}</span>\n\n`;
+        termOutput.scrollTop = termOutput.scrollHeight;
+        
+        termInput.disabled = true;
+        termInput.placeholder = "⏳ Proses instalasi berjalan, mohon tunggu...";
+
+        const sep = parentDir.includes('\\') ? '\\' : '/';
+        const targetFolderPath = parentDir + sep + projectName;
+
+        try {
+            termOutput.innerHTML += `<span class="text-yellow-600 dark:text-yellow-400">Sedang mengecek dependency...</span>\n`;
+            
+            if (['nextjs', 'react', 'capacitor', 'vue', 'svelte'].includes(type)) {
+                try {
+                    const nodeCheck = await RunCommand(parentDir, "node -v");
+                    termOutput.innerHTML += `<span class="text-green-600">✔ Node.js terdeteksi: ${nodeCheck.trim()}</span>\n`;
+                } catch {
+                    throw new Error("Node.js belum terinstall! Silakan download & install Node.js terlebih dahulu.");
+                }
+            } else if (type === 'golang') {
+                try {
+                    const goCheck = await RunCommand(parentDir, "go version");
+                    termOutput.innerHTML += `<span class="text-green-600">✔ Golang terdeteksi: ${goCheck.trim()}</span>\n`;
+                } catch {
+                    throw new Error("Golang belum terinstall! Silakan install Go terlebih dahulu.");
+                }
+            } else if (type === 'python') {
+                try {
+                    const pyCheck = await RunCommand(parentDir, "python --version");
+                    termOutput.innerHTML += `<span class="text-green-600">✔ Python terdeteksi: ${pyCheck.trim()}</span>\n`;
+                } catch {
+                    throw new Error("Python belum terinstall atau belum masuk ke System PATH!");
+                }
+            } else if (['laravel', 'ci4'].includes(type)) {
+                try {
+                    const compCheck = await RunCommand(parentDir, "composer -V");
+                    termOutput.innerHTML += `<span class="text-green-600">✔ Composer terdeteksi</span>\n`;
+                } catch {
+                    throw new Error("Composer belum terinstall! Silakan install Composer (PHP) terlebih dahulu.");
+                }
+            }
+
+            pendingProjectLoad = targetFolderPath; 
+            
+            let cmd = "";
+            termOutput.innerHTML += `<br><span class="text-cyan-600 dark:text-cyan-400 font-bold">🚀 Memulai instalasi... (Proses ini mungkin memakan waktu)</span>\n`;
+            
+            if (type === 'nextjs') {
+                cmd = `npx create-next-app@latest ${projectName} --ts --tailwind --eslint --app --src-dir --import-alias "@/*"`;
+            } else if (type === 'react') {
+                cmd = `npm create vite@latest ${projectName} -- --template react`;
+            } else if (type === 'vue') {
+                cmd = `npm create vite@latest ${projectName} -- --template vue`;
+            } else if (type === 'svelte') {
+                cmd = `npm create vite@latest ${projectName} -- --template svelte`;
+            } else if (type === 'golang') {
+                if (parentDir.includes('\\')) {
+                    cmd = `mkdir ${projectName} && cd ${projectName} && go mod init ${projectName} && echo package main > main.go`;
+                } else {
+                    cmd = `mkdir -p ${projectName} && cd ${projectName} && go mod init ${projectName} && echo "package main" > main.go`;
+                }
+            } else if (type === 'python') {
+                if (parentDir.includes('\\')) {
+                    cmd = `mkdir ${projectName} && cd ${projectName} && python -m venv venv && echo print('Hello Python') > main.py`;
+                } else {
+                    cmd = `mkdir -p ${projectName} && cd ${projectName} && python -m venv venv && echo "print('Hello Python')" > main.py`;
+                }
+            } else if (type === 'capacitor') {
+                cmd = `npm init @capacitor/app ${projectName} --name="${projectName}" --app-id="com.ngappid.${projectName}"`;
+            } else if (type === 'laravel') {
+                cmd = `composer create-project laravel/laravel ${projectName}`;
+            } else if (type === 'ci4') {
+                cmd = `composer create-project codeigniter4/appstarter ${projectName}`;
+            }
+
+            await RunLiveCommand(parentDir, cmd);
+            
+        } catch (err) {
+            termOutput.innerHTML += `<span class="text-red-500 font-bold">❌ GAGAL: ${String(err)}</span>\n`;
+            termOutput.scrollTop = termOutput.scrollHeight;
+            termInput.disabled = false;
+            termInput.placeholder = "Ketik perintah di sini...";
+            pendingProjectLoad = ""; 
+        }
+    });
+});

@@ -508,3 +508,10 @@ func (a *App) StopLiveCommand() {
 		currentLiveCmd = nil
 	}
 }
+
+// Fungsi khusus untuk milih folder induk (tempat project baru dibuat)
+func (a *App) SelectDirectory() (string, error) {
+	return wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Pilih Folder Induk (Tempat menyimpan project)",
+	})
+}

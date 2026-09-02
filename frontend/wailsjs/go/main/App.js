@@ -98,6 +98,10 @@ export function SearchInFiles(arg1, arg2) {
   return window['go']['main']['App']['SearchInFiles'](arg1, arg2);
 }
 
+export function SelectDirectory() {
+  return window['go']['main']['App']['SelectDirectory']();
+}
+
 export function SetGitConfig(arg1, arg2) {
   return window['go']['main']['App']['SetGitConfig'](arg1, arg2);
 }
