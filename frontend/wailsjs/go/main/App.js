@@ -78,6 +78,10 @@ export function RenameItem(arg1, arg2) {
   return window['go']['main']['App']['RenameItem'](arg1, arg2);
 }
 
+export function ReplaceInFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ReplaceInFile'](arg1, arg2, arg3);
+}
+
 export function RunCommand(arg1, arg2) {
   return window['go']['main']['App']['RunCommand'](arg1, arg2);
 }

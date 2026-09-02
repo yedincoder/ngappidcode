@@ -77,4 +77,4 @@ Dikembangkan dengan ☕ oleh **YedinCoder** dan bersifat 100% *Open Source*.
 > ❤️ **Spesial:** 
 > *Sebuah karya untuk kemudahan developer di seluruh Nusantara. Didedikasikan dengan segenap cinta untuk **Zawjatii**, serta tiga pelita hati: **Shafa**, **Ra'uf**, dan si bungsu **Sa'ad**.*
 
-*Dukungan donasi secara sukarela (seikhlasnya) melalui QRIS sangat menghargai kerja keras pengembangan project ini! 🙏☕*
+*Dukungan pengembangan aplikasi secara sukarela (seikhlasnya) melalui QRIS, untuk menghargai kerja keras pengembangan project ini! 🙏☕*

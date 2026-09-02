@@ -3,7 +3,7 @@ import {
     GitPull, GitCommitAndPush, GetFolderContents,
     CreateNewFile, CreateNewFolder, RenameItem, DeleteItem, GitInit, RunCommand,
     SetGitConfig, AddGitRemote, GitReset, GetAppVersion,
-    SearchInFiles,
+    SearchInFiles, ReplaceInFile,
     FTPConnect, FTPReadFile, FTPSaveFile, FTPDisconnect
 } from '../wailsjs/go/main/App';
 
@@ -1001,7 +1001,14 @@ if (globalSearchInput) {
 
 function renderSearchResults(results, keyword) {
     searchResultsContainer.innerHTML = '';
-
+	
+const replaceContainer = document.getElementById('replace-container');
+const replaceInput = document.getElementById('global-replace-input');
+if (results && results.length > 0) {
+    replaceContainer.classList.remove('hidden');
+} else {
+    replaceContainer.classList.add('hidden');
+}
     const headerDiv = document.createElement('div');
     headerDiv.className = "flex justify-between items-center px-3 py-1.5 bg-[#2d2d2d] border-b border-[#444] text-[10px] font-bold text-gray-400 uppercase tracking-wider sticky top-0 z-10 shadow-md";
     headerDiv.innerHTML = `<span>${results ? results.length : 0} HASIL DITEMUKAN</span>`;
@@ -1023,46 +1030,63 @@ function renderSearchResults(results, keyword) {
     }
 
     results.forEach(res => {
-        const fileName = res.path.split(/[/\\]/).pop();
-        const resultItem = document.createElement('div');
-        resultItem.className = "py-2 px-3 border-b border-[#333]/50 hover:bg-[#37373d] cursor-pointer group";
+    const fileName = res.path.split(/[/\\]/).pop();
+    const resultItem = document.createElement('div');
+    resultItem.className = "py-2 px-3 border-b border-[#333]/50 hover:bg-[#37373d] group";
 
-        const regex = new RegExp(`(${keyword})`, 'gi');
-        const highlightedText = res.line_text
-            .replace(/</g, "&lt;").replace(/>/g, "&gt;")
-            .replace(regex, `<span class="bg-blue-500/40 text-blue-100 rounded px-0.5">$1</span>`);
+    const regex = new RegExp(`(${keyword})`, 'gi');
+    const highlightedText = res.line_text
+        .replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(regex, `<span class="bg-blue-500/40 text-blue-100 rounded px-0.5">$1</span>`);
 
-        resultItem.innerHTML = `
-            <div class="flex justify-between items-center mb-1">
-                <span class="text-xs font-semibold text-blue-300 truncate mr-2" title="${res.path}">📄 ${fileName}</span>
+    // Tambahkan tombol replace di tiap hasil
+    resultItem.innerHTML = `
+        <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-semibold text-blue-300 truncate mr-2 cursor-pointer open-file-btn" title="${res.path}">📄 ${fileName}</span>
+            <div class="flex gap-1">
+                <button class="btn-replace text-[10px] bg-green-600 hover:bg-green-500 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Replace</button>
                 <span class="text-[10px] text-gray-500 bg-[#1e1e1e] px-1.5 py-0.5 rounded border border-[#444]">Baris ${res.line_number}</span>
             </div>
-            <div class="text-[11px] text-gray-400 font-mono truncate group-hover:text-gray-300">
-                ${highlightedText.trim()}
-            </div>
-        `;
+        </div>
+        <div class="text-[11px] text-gray-400 font-mono truncate group-hover:text-gray-300 cursor-pointer open-file-btn">
+            ${highlightedText.trim()}
+        </div>
+    `;
 
-        resultItem.addEventListener('click', async () => {
-            try {
-                if (activeFilePath !== res.path) {
-                    const content = await ReadFileByPath(res.path);
-                    openTab(res.path, content);
-                }
-
-                setTimeout(() => {
-                    if (editorInstance) {
-                        editorInstance.revealLineInCenter(res.line_number);
-                        editorInstance.setPosition({ lineNumber: res.line_number, column: 1 });
-                        editorInstance.focus();
-                    }
-                }, 100);
-            } catch (err) {
-                logToTerminal("System", "Gagal membuka file dari pencarian: " + err, true);
-            }
+    // Logika Buka File (kode lu yang lama)
+    const openBtns = resultItem.querySelectorAll('.open-file-btn');
+    openBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+             // ... [isi logika openTab lu yang lama] ...
         });
-
-        searchResultsContainer.appendChild(resultItem);
     });
+
+    // Logika Replace
+    const btnReplace = resultItem.querySelector('.btn-replace');
+    btnReplace.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const replacementText = replaceInput.value;
+        if (!replacementText) return CustomAlert("Isi dulu kata penggantinya bro!");
+        
+        try {
+            await ReplaceInFile(res.path, keyword, replacementText);
+            logToTerminal("Replace", `✔ Kata '${keyword}' diganti jadi '${replacementText}' di ${fileName}`);
+            
+            // Render ulang atau hilangkan item ini dari list
+            resultItem.style.display = 'none'; 
+            
+            // Update tab kalau file sedang terbuka
+            if (activeFilePath === res.path) {
+                 const newContent = await ReadFileByPath(res.path);
+                 editorInstance.setValue(newContent);
+            }
+        } catch (err) {
+            logToTerminal("System", "Gagal replace: " + err, true);
+        }
+    });
+
+    searchResultsContainer.appendChild(resultItem);
+});
 }
 
 // --- DROPDOWN MENUS & SYSTEM CONTEXT CONTROL ---

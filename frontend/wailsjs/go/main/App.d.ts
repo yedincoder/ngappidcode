@@ -40,6 +40,8 @@ export function ReadFileByPath(arg1:string):Promise<string>;
 
 export function RenameItem(arg1:string,arg2:string):Promise<void>;
 
+export function ReplaceInFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+
 export function RunCommand(arg1:string,arg2:string):Promise<string>;
 
 export function RunLiveCommand(arg1:string,arg2:string):Promise<void>;

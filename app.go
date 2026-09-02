@@ -39,7 +39,7 @@ type FolderInfo struct {
 	Files    []FileItem `json:"files"`
 }
 
-const AppVersion = "v1.0.1"
+const AppVersion = "v1.0.2"
 
 func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
@@ -335,7 +335,27 @@ func (a *App) SearchInFiles(folderPath string, keyword string) ([]SearchResult, 
 
 	return results, err
 }
+// --- FITUR REPLACE GLOBAL ---
+func (a *App) ReplaceInFile(filePath string, keyword string, replacement string) (string, error) {
+	if filePath == "" || keyword == "" {
+		return "", fmt.Errorf("path atau keyword kosong")
+	}
 
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Ganti semua kata yang cocok
+	newContent := strings.ReplaceAll(string(content), keyword, replacement)
+	
+	err = os.WriteFile(filePath, []byte(newContent), 0644)
+	if err != nil {
+		return "", err
+	}
+
+	return "Berhasil mengganti kata", nil
+}
 // ==========================================
 // FITUR FTP TERINTEGRASI
 // ==========================================
